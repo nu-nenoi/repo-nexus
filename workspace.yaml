@@ -1,0 +1,9 @@
+version: 1
+
+# AI context files to automatically sync into member repositories
+ai_files:
+  - AGENTS.md
+  - .github/copilot-instructions.md
+
+# Member repositories managed by Repo Nexus
+repos:

@@ -1,0 +1,6 @@
+# Meta-repo: ignore symlinked repos (they are pointers, not real content)
+repos/*
+!repos/.gitkeep
+
+# OS
+.DS_Store
