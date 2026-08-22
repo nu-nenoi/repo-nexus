@@ -1,89 +1,137 @@
-# MetaWeave (`mw`) — Multi-Repo AI Workspace
+# Repo Nexus (`rn` / `rnx`) — Multi-Repo AI Workspace
 
-A lightweight, tooling-independent system for orchestrating multiple repositories and sharing AI context using Unix symlinks.
+A tooling-independent system for orchestrating multiple repositories and sharing AI context across projects using Unix symlinks.
 
-- **No git submodules or subtrees**
-- **No IDE-specific workspace lock-in** (works seamlessly across VS Code, Cursor, Zed, terminal agents, etc.)
-- **AI provider-agnostic** (works with Copilot, Claude Code, Antigravity, local LLMs, and any tool reading standard markdown instructions)
+- **No git submodules, subtrees, or nested git friction**
+- **No IDE lock-in** (works across VS Code, Cursor, Antigravity, Claude Code, Zed, terminal agents)
+- **AI provider-agnostic** (shares `AGENTS.md`, Copilot instructions, and any custom prompts/rules)
+- **Automatic AI context injection** on repository registration
 - **Zero dependencies** (pure POSIX shell CLI)
 
 ---
 
-## Architecture: The Two Symlink Flows
+## How It Works: The Two Symlink Flows
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. SCOPE IN — Bring repos INTO the meta-workspace         │
+│  1. SCOPE IN — Bring member repos INTO Repo Nexus           │
 │                                                             │
-│  meta-repo/                                                 │
+│  repo-nexus/                                                │
 │    repos/                                                   │
-│      project-a/  ──(symlink)──>  ~/code/project-a           │
-│      project-b/  ──(symlink)──>  ~/code/project-b           │
-│    AGENTS.md          (shared instructions)                 │
-│    toolkit/           (shared prompts & templates)          │
+│      backend/   ──(symlink)──>  ~/code/backend-api          │
+│      frontend/  ──(symlink)──>  ~/code/web-app              │
+│    AGENTS.md         (universal AI instructions)            │
+│    workspace.yaml    (manifest: AI files + repos)           │
 │                                                             │
-│  Agent/IDE opens meta-repo → sees all repos in single scope │
-│  Edits via symlinks modify original repos directly ✓        │
+│  Agent opens repo-nexus → sees all repos in one workspace.  │
+│  Edits through symlinks modify the original files directly. │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│  2. INJECT OUT — Push AI context INTO standalone repos      │
+│  2. INJECT OUT — Auto-sync AI context INTO member repos     │
 │                                                             │
-│  ~/code/project-a/                                          │
-│    AGENTS.md     ──(symlink)──>  meta-repo/AGENTS.md        │
+│  ~/code/backend-api/                                        │
+│    AGENTS.md     ──(symlink)──>  repo-nexus/AGENTS.md       │
 │    .github/copilot-instructions.md                          │
-│                  ──(symlink)──>  meta-repo/.github/...      │
-│    src/               (actual project code)                 │
+│                  ──(symlink)──>  repo-nexus/.github/...     │
+│    src/              (real codebase)                        │
 │                                                             │
-│  Open project-a standalone → AI tools automatically see     │
-│  shared instructions as if they were local ✓                │
+│  Open backend-api standalone → AI tools automatically see   │
+│  shared instructions as if they were local files.           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Key Characteristics & Findings
+## Key Principles
 
-1. **Write-Through Guarantee**:
-   In Unix systems, symlinks are transparent pointers. When an AI agent or developer edits a file inside `repos/my-app/src/index.ts`, the OS resolves the link and directly modifies the original file on disk.
+1. **Symlink Write-Through**:
+   Symlinks are transparent pointers. When an AI agent or developer edits `repos/backend/src/index.ts`, the OS resolves the link and writes directly to the source repository on disk.
 
-2. **Isolated Version Control**:
-   Each member repository remains a completely independent Git repo. Branching, staging, committing, and pushing occur in the respective target repo.
+2. **Autonomous Git Repositories**:
+   Each member repository retains its own Git history, branches, and remotes. Git operations (commit, push, pull) are executed directly inside each member repo.
 
-3. **Dynamic Scope (Hide / Show)**:
-   Toggle any repo's visibility inside the meta-workspace instantly. Hiding a repo removes only the symlink under `repos/`, keeping the source codebase intact.
+3. **Single Source of Truth for AI Context**:
+   Edit `AGENTS.md` or `.github/copilot-instructions.md` in Repo Nexus, and the changes immediately reflect across all member repositories.
+
+4. **Dynamic Workspace Scope**:
+   Easily show or hide member repos from the active workspace without modifying disk contents.
 
 ---
 
 ## Quick Start
 
-### 1. Global Command Setup (Optional)
-Run the script directly or install `mw` into your PATH:
+### 1. Interactive Setup Wizard
+Run the interactive installer to set up the CLI command and configure your workspace:
 
 ```bash
-# Option A: Run installer
-./mw install
-
-# Option B: Add shell alias to ~/.zshrc or ~/.bashrc
-alias mw="/path/to/meta-repo/mw"
+./rn install
 ```
 
-### 2. Basic Workflow
+The wizard will:
+1. Symlink `rn` and `rnx` to your chosen PATH folder (e.g. `~/.local/bin` or `/usr/local/bin`).
+2. Read your `workspace.yaml` configuration.
+3. Prompt to register existing repositories.
+4. Synchronize all scope links and AI context files.
+
+*(Alternative: Add `alias rn="/path/to/repo-nexus/rn"` to your `~/.zshrc`)*
+
+---
+
+### 2. Everyday Usage
 
 ```bash
-# Register an existing local repo
-mw add backend ~/code/backend-api
-mw add frontend ~/code/web-app
+# 1. Register a repository (links into scope & auto-injects AI context)
+rn add backend ~/code/backend-api
+rn add frontend ~/code/web-app
 
-# List all registered repositories
-mw list
+# 2. Inspect workspace status & linked AI files
+rn status
 
-# Inject shared AI instructions into a member repo
-mw inject backend
-mw inject frontend
+# 3. List all registered repositories
+rn list
 
-# Check workspace health
-mw status
+# 4. Temporarily hide a repo from active indexing/agent scope
+rn hide backend
+
+# 5. Restore a hidden repo back to active scope
+rn show backend
+
+# 6. Reconcile/repair all symlinks across all repos (idempotent)
+rn sync
+
+# 7. Unregister a repository (removes scope link & cleans up injected AI files)
+rn remove backend
+```
+
+---
+
+## Workspace Manifest (`workspace.yaml`)
+
+The manifest defines which AI context files get synced and which member repositories are registered:
+
+```yaml
+version: 1
+
+# List of AI context files to automatically sync into every member repo
+ai_files:
+  - AGENTS.md
+  - .github/copilot-instructions.md
+  # Add more files/directories as needed:
+  # - .cursorrules
+  # - toolkit/prompts/review-guidelines.md
+
+# Member repositories managed by Repo Nexus
+repos:
+  backend:
+    path: /Users/admin/code/backend-api
+    scope: visible
+  frontend:
+    path: /Users/admin/code/web-app
+    scope: visible
+  analytics:
+    path: /Users/admin/code/analytics-service
+    scope: hidden
 ```
 
 ---
@@ -92,71 +140,31 @@ mw status
 
 | Command | Description |
 |:---|:---|
-| `mw add <name> <path>` | Register a local repository and create its scope symlink |
-| `mw remove <name>` | Unregister a repository and clean up associated symlinks |
-| `mw list` | Display all registered repos with their visibility and injection status |
-| `mw status` | Inspect workspace health, active links, and broken paths |
-| `mw show <name>` | Restore a hidden repo to the workspace scope (`repos/<name>`) |
-| `mw hide <name>` | Temporarily remove a repo from the workspace scope |
-| `mw inject <name>` | Create symlinks inside target repo pointing to shared AI configs |
-| `mw eject <name>` | Remove injected symlinks from target repo |
-| `mw inject-all` | Inject shared configs into all member repos |
-| `mw eject-all` | Remove injected configs from all member repos |
-| `mw sync` | Reconcile and rebuild all symlinks from `workspace.yaml` (idempotent) |
+| `rn install` | Run interactive setup wizard (installs CLI and synchronizes workspace) |
+| `rn add <name> <path>` | Register repo, create scope symlink, and auto-inject AI context |
+| `rn remove <name>` | Unregister repo, unlink from scope, and clean up injected AI files |
+| `rn list` | List all registered repos and visibility scopes |
+| `rn status` | Display status of AI context files, active member repos, and paths |
+| `rn show <name>` | Make a hidden repo visible in workspace (`repos/<name>`) |
+| `rn hide <name>` | Hide a repo from active workspace indexing |
+| `rn sync` | Reconcile all scope symlinks and AI context files from `workspace.yaml` |
 
 ---
 
-## Manifest Format (`workspace.yaml`)
-
-All registered repositories are tracked in `workspace.yaml`:
-
-```yaml
-version: 1
-
-repos:
-  backend-api:
-    path: /Users/admin/code/backend-api
-    scope: visible
-    inject: true
-  web-app:
-    path: /Users/admin/code/web-app
-    scope: visible
-    inject: true
-  legacy-service:
-    path: /Users/admin/code/legacy-service
-    scope: hidden
-    inject: false
-```
-
----
-
-## Repository Structure
+## Workspace Directory Structure
 
 ```
-meta-repo/
-├── workspace.yaml                  # Repo registry & configuration
-├── mw                              # CLI script (zero dependencies)
-├── mw.sh                           # Shortcut symlink to mw
+repo-nexus/
+├── workspace.yaml                  # Manifest (AI files + repository registry)
+├── rn                              # Core CLI executable
+├── rnx                             # Shortcut alias to rn
 ├── AGENTS.md                       # Universal AI coding guidelines
 ├── .github/
-│   └── copilot-instructions.md     # GitHub Copilot rules
+│   └── copilot-instructions.md     # GitHub Copilot custom instructions
 ├── toolkit/                        # Shared prompts, scripts, templates
 │   ├── prompts/
 │   ├── scripts/
 │   └── templates/
-├── repos/                          # In-scope member repos (gitignored symlinks)
+├── repos/                          # Active member repos (gitignored symlinks)
 └── README.md
 ```
-
----
-
-## Extending Injected Files
-
-To inject additional AI configuration files across your repos (e.g. `.cursorrules`, `.claude/`), customize `INJECT_ITEMS` in `mw`:
-
-```sh
-INJECT_ITEMS="AGENTS.md:file
-.github/copilot-instructions.md:file
-.cursorrules:file"
-```
-Existing non-symlink files in member repositories are never overwritten.
