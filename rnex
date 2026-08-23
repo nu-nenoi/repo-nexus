@@ -1,29 +1,10 @@
 #!/bin/sh
 # ============================================================================
-# rn / rnx — Repo Nexus CLI
+# rnex — Repo Nexus CLI
 # Tooling-independent multi-repo workspace manager with auto-synced AI context.
 # Zero dependencies. POSIX-compatible.
 # ============================================================================
 set -e
-
-# ---- Resolve Source Directory (handles symlinks to the script) ------------
-
-resolve_script_dir() {
-  _src="$1"
-  while [ -L "$_src" ]; do
-    _dir="$(cd -P "$(dirname "$_src")" && pwd)"
-    _src="$(readlink "$_src")"
-    case "$_src" in
-      /*) ;;
-      *)  _src="$_dir/$_src" ;;
-    esac
-  done
-  cd -P "$(dirname "$_src")" && pwd
-}
-
-NEXUS_DIR="$(resolve_script_dir "$0")"
-WORKSPACE_YAML="$NEXUS_DIR/workspace.yaml"
-REPOS_DIR="$NEXUS_DIR/repos"
 
 # ---- Terminal Colours (auto-detected) -------------------------------------
 
@@ -48,36 +29,104 @@ die()      { log_err "$1"; exit 1; }
 resolve_path() {
   _input="$1"
   case "$_input" in
-    ~/*) _input="$HOME/${_input#\~/}" ;;
-    ~)   _input="$HOME" ;;
+    \~/*) _input="$HOME/${_input#\~/}" ;;
+    \~)   _input="$HOME" ;;
   esac
   case "$_input" in
-    /*) printf '%s' "$_input" ;;
-    *)  printf '%s' "$(cd "$_input" 2>/dev/null && pwd)" ;;
+    /*)
+      printf '%s' "$_input"
+      ;;
+    *)
+      if [ -d "$_input" ]; then
+        printf '%s' "$(cd "$_input" 2>/dev/null && pwd -P)"
+      else
+        _parent="$(cd "$(dirname "$_input")" 2>/dev/null && pwd -P)"
+        _base="$(basename "$_input")"
+        if [ "$_parent" = "/" ]; then
+          printf '/%s' "$_base"
+        else
+          printf '%s/%s' "$_parent" "$_base"
+        fi
+      fi
+      ;;
   esac
+}
+
+# Resolve location of this script (for installer to copy/link itself)
+resolve_script_path() {
+  _src="$1"
+  while [ -L "$_src" ]; do
+    _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+    _src="$(readlink "$_src")"
+    case "$_src" in
+      /*) ;;
+      *)  _src="$_dir/$_src" ;;
+    esac
+  done
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  printf '%s/%s' "$_dir" "$(basename "$_src")"
+}
+
+SCRIPT_LOCATION="$(resolve_script_path "$0")"
+
+# ---- Workspace Detection (Context-Aware) ----------------------------------
+
+# Search for workspace.yaml in current directory or parent directories
+find_workspace_dir() {
+  _curr="$(pwd -P 2>/dev/null || pwd)"
+  while [ -n "$_curr" ] && [ "$_curr" != "/" ]; do
+    if [ -f "$_curr/workspace.yaml" ]; then
+      printf '%s' "$_curr"
+      return 0
+    fi
+    _curr="$(dirname "$_curr")"
+  done
+  if [ -f "/workspace.yaml" ]; then
+    printf '/'
+    return 0
+  fi
+  return 1
+}
+
+# Locate workspace root for active commands
+require_workspace() {
+  if [ -n "$CUSTOM_CONFIG" ]; then
+    _cfg_path="$(resolve_path "$CUSTOM_CONFIG")"
+    if [ ! -f "$_cfg_path" ]; then
+      die "Specified config file does not exist: $_cfg_path"
+    fi
+    NEXUS_DIR="$(cd -P "$(dirname "$_cfg_path")" 2>/dev/null && pwd -P)"
+    WORKSPACE_YAML="$_cfg_path"
+    REPOS_DIR="$NEXUS_DIR/repos"
+    log_info "Using workspace at ${_BOLD}$NEXUS_DIR${_NC} ${_DIM}(via config: $WORKSPACE_YAML)${_NC}"
+    return 0
+  fi
+
+  _found_dir="$(find_workspace_dir || true)"
+  if [ -z "$_found_dir" ]; then
+    log_err "No 'workspace.yaml' found in current directory ($PWD) or parent directories."
+    log_dim "To initialize a new Repo Nexus workspace here, run:"
+    log_dim "  rnex init"
+    log_dim "Or specify a workspace config file directly:"
+    log_dim "  rnex --config /path/to/workspace.yaml <command>"
+    log_dim "Or change directory to an existing workspace:"
+    log_dim "  cd /path/to/workspace"
+    exit 1
+  fi
+
+  NEXUS_DIR="$_found_dir"
+  WORKSPACE_YAML="$NEXUS_DIR/workspace.yaml"
+  REPOS_DIR="$NEXUS_DIR/repos"
+
+  log_info "Using workspace at ${_BOLD}$NEXUS_DIR${_NC} ${_DIM}(workspace.yaml found)${_NC}"
 }
 
 # ---- YAML Parser / Manipulator (for workspace.yaml) ----------------------
 
-ensure_yaml() {
-  if [ ! -f "$WORKSPACE_YAML" ]; then
-    cat <<'EOF' > "$WORKSPACE_YAML"
-version: 1
-
-ai_files:
-  - AGENTS.md
-  - .github/copilot-instructions.md
-
-repos:
-EOF
-    log_dim "Created $WORKSPACE_YAML"
-  fi
-}
-
 # Parse list of ai_files from workspace.yaml
 yaml_list_ai_files() {
   [ -f "$WORKSPACE_YAML" ] || return 0
-  awk '
+  cat "$WORKSPACE_YAML" | awk '
     /^ai_files:/ { a=1; next }
     a && /^[^ #]/ { exit }
     a && /^[ ]*-[ ]*/ {
@@ -85,26 +134,26 @@ yaml_list_ai_files() {
       sub(/[ ]*#.*/, "");
       if (length($0) > 0) print $0
     }
-  ' "$WORKSPACE_YAML"
+  '
 }
 
 # Parse list of repos from workspace.yaml
 yaml_list_repos() {
   [ -f "$WORKSPACE_YAML" ] || return 0
-  awk '
+  cat "$WORKSPACE_YAML" | awk '
     /^repos:/ { r=1; next }
     r && /^[^ #]/ { exit }
     r && /^  [a-zA-Z0-9_.-]+:[ ]*$/ {
       sub(/^  /, ""); sub(/:.*/, ""); print
     }
-  ' "$WORKSPACE_YAML"
+  '
 }
 
 # Get a field value for a repo
 yaml_get() {
   _repo="$1"; _field="$2"
   [ -f "$WORKSPACE_YAML" ] || return 0
-  awk -v repo="$_repo" -v field="$_field" '
+  cat "$WORKSPACE_YAML" | awk -v repo="$_repo" -v field="$_field" '
     /^repos:/ { r=1; next }
     r && /^[^ #]/ { exit }
     r && match($0, "^  " repo ":[ ]*$") { t=1; next }
@@ -112,7 +161,7 @@ yaml_get() {
     r && t && match($0, "^    " field ":") {
       sub(/^    [a-zA-Z0-9_.-]+:[ ]*/, ""); print
     }
-  ' "$WORKSPACE_YAML"
+  '
 }
 
 yaml_has_repo() {
@@ -121,7 +170,6 @@ yaml_has_repo() {
 
 yaml_add_repo() {
   _name="$1"; _path="$2"
-  ensure_yaml
   if ! grep -q '^repos:' "$WORKSPACE_YAML"; then
     printf '\nrepos:\n' >> "$WORKSPACE_YAML"
   fi
@@ -192,7 +240,7 @@ inject_ai_files() {
     _target="$_repo_path/$_item"
 
     if [ ! -e "$_source" ]; then
-      log_warn "AI file not found in nexus, skipping: $_item"
+      log_warn "AI file not found in nexus root, skipping: $_item"
       continue
     fi
 
@@ -252,17 +300,75 @@ _gitignore_add() {
 # Commands
 # ============================================================================
 
+cmd_init() {
+  _target_dir="${1:-$PWD}"
+  _target_dir="$(resolve_path "$_target_dir")"
+  mkdir -p "$_target_dir"
+
+  _target_yaml="$_target_dir/workspace.yaml"
+  _target_agents="$_target_dir/AGENTS.md"
+  _target_copilot="$_target_dir/.github/copilot-instructions.md"
+  _target_repos="$_target_dir/repos"
+
+  if [ -f "$_target_yaml" ]; then
+    log_warn "Workspace already exists at $_target_dir"
+    return 0
+  fi
+
+  cat <<'EOF' > "$_target_yaml"
+# AI context files to automatically sync into member repositories
+ai_files:
+  - AGENTS.md
+  - .github/copilot-instructions.md
+
+# Member repositories managed by Repo Nexus
+repos:
+EOF
+
+  if [ ! -f "$_target_agents" ]; then
+    cat <<'EOF' > "$_target_agents"
+# Multi-Repo AI Workspace Context
+
+This workspace operates as a **Repo Nexus** linking multiple independent repositories via symlinks.
+
+## Rules for AI Coding Assistants
+
+1. **Symlink Write-Through**: Files edited under `repos/<name>/` directly modify the target repository.
+2. **Repo Boundaries**: Each repository is isolated. Do not introduce cross-repo imports unless explicitly architected.
+3. **Shared Context**: This file is symlinked across member repositories. Keep instructions universal. Use local instructions for repo-specific rules.
+4. **Git Operations**: Commit and push changes directly within the respective member repository root.
+EOF
+  fi
+
+  if [ ! -f "$_target_copilot" ]; then
+    mkdir -p "$_target_dir/.github"
+    cat <<'EOF' > "$_target_copilot"
+# Copilot Instructions
+
+- Follow existing coding conventions within each repository.
+- Symlinked AI configuration files are shared across the workspace; do not modify their structure unless intended globally.
+- Preserve repository boundaries and follow localized architecture.
+EOF
+  fi
+
+  mkdir -p "$_target_repos"
+  touch "$_target_repos/.gitkeep"
+
+  log_ok "Initialized new Repo Nexus workspace at ${_BOLD}$_target_dir${_NC}"
+  log_dim "Created workspace.yaml, AGENTS.md, .github/copilot-instructions.md, and repos/"
+}
+
 cmd_add() {
+  require_workspace
   _name="$1"; _path="$2"
-  [ -n "$_name" ] || die "Usage: rn add <name> <path>"
-  [ -n "$_path" ] || die "Usage: rn add <name> <path>"
+  [ -n "$_name" ] || die "Usage: rnex add <name> <path>"
+  [ -n "$_path" ] || die "Usage: rnex add <name> <path>"
 
   yaml_has_repo "$_name" && die "Repo '$_name' is already registered in workspace.yaml"
 
   _path="$(resolve_path "$_path")"
   [ -d "$_path" ] || die "Directory does not exist: $_path"
 
-  ensure_yaml
   ensure_repos_dir
   yaml_add_repo "$_name" "$_path"
   create_scope_link "$_name"
@@ -272,8 +378,9 @@ cmd_add() {
 }
 
 cmd_remove() {
+  require_workspace
   _name="$1"
-  [ -n "$_name" ] || die "Usage: rn remove <name>"
+  [ -n "$_name" ] || die "Usage: rnex remove <name>"
   yaml_has_repo "$_name" || die "Repo '$_name' is not registered"
 
   eject_ai_files "$_name"
@@ -283,8 +390,9 @@ cmd_remove() {
 }
 
 cmd_show() {
+  require_workspace
   _name="$1"
-  [ -n "$_name" ] || die "Usage: rn show <name>"
+  [ -n "$_name" ] || die "Usage: rnex show <name>"
   yaml_has_repo "$_name" || die "Repo '$_name' is not registered"
 
   ensure_repos_dir
@@ -293,8 +401,9 @@ cmd_show() {
 }
 
 cmd_hide() {
+  require_workspace
   _name="$1"
-  [ -n "$_name" ] || die "Usage: rn hide <name>"
+  [ -n "$_name" ] || die "Usage: rnex hide <name>"
   yaml_has_repo "$_name" || die "Repo '$_name' is not registered"
 
   remove_scope_link "$_name"
@@ -302,7 +411,7 @@ cmd_hide() {
 }
 
 cmd_list() {
-  ensure_yaml
+  require_workspace
   printf "${_B}%-25s %-12s %s${_NC}\n" "NAME" "SCOPE" "PATH"
   printf '%-25s %-12s %s\n' "----" "-----" "----"
   yaml_list_repos | while read -r _name; do
@@ -314,7 +423,7 @@ cmd_list() {
 }
 
 cmd_status() {
-  ensure_yaml
+  require_workspace
   ensure_repos_dir
 
   printf "\n${_B}Repo Nexus Workspace Status${_NC}\n"
@@ -333,7 +442,7 @@ cmd_status() {
 
   printf "${_BOLD}Member Repositories:${_NC}\n"
   if [ -z "$(yaml_list_repos)" ]; then
-    printf "  ${_DIM}(No repositories registered yet. Use 'rn add <name> <path>')${_NC}\n"
+    printf "  ${_DIM}(No repositories registered yet. Use 'rnex add <name> <path>')${_NC}\n"
   else
     yaml_list_repos | while read -r _name; do
       _scope="$(yaml_get "$_name" "scope")"
@@ -347,17 +456,17 @@ cmd_status() {
       elif [ -L "$_link" ]; then
         printf "  ${_R}✗${_NC} %-22s ${_R}BROKEN LINK${_NC} → %s\n" "$_name" "$_path"
       else
-        printf "  ${_R}✗${_NC} %-22s ${_R}MISSING LINK${_NC} (run 'rn sync')\n" "$_name"
+        printf "  ${_R}✗${_NC} %-22s ${_R}MISSING LINK${_NC} (run 'rnex sync')\n" "$_name"
       fi
     done
   fi
 
-  printf "\n${_DIM}Nexus Root:  %s${_NC}\n" "$NEXUS_DIR"
+  printf "\n${_DIM}Workspace:   %s${_NC}\n" "$NEXUS_DIR"
   printf "${_DIM}Repos Dir:   %s${_NC}\n\n" "$REPOS_DIR"
 }
 
 cmd_sync() {
-  ensure_yaml
+  require_workspace
   ensure_repos_dir
 
   log_info "Synchronizing workspace from workspace.yaml..."
@@ -376,14 +485,13 @@ cmd_sync() {
   log_ok "Sync complete — all scope links and AI context files reconciled"
 }
 
-# Interactive Installation Wizard
+# Global Installation Command
 cmd_install() {
   printf "\n${_BOLD}${_C}╔══════════════════════════════════════════════════════╗${_NC}\n"
-  printf "${_BOLD}${_C}║             Repo Nexus Installation Wizard           ║${_NC}\n"
+  printf "${_BOLD}${_C}║          Repo Nexus (rnex) Global Installer          ║${_NC}\n"
   printf "${_BOLD}${_C}╚══════════════════════════════════════════════════════╝${_NC}\n\n"
 
-  # Step 1: Install CLI binary symlinks
-  printf "${_BOLD}Step 1: Install CLI command${_NC}\n"
+  printf "${_BOLD}Install 'rnex' command globally${_NC}\n"
   printf "Default destination directory [${_G}$HOME/.local/bin${_NC}]: "
   read -r _chosen_bin
   _target_bin="${_chosen_bin:-$HOME/.local/bin}"
@@ -391,20 +499,22 @@ cmd_install() {
 
   mkdir -p "$_target_bin" 2>/dev/null || true
   if [ -d "$_target_bin" ] && [ -w "$_target_bin" ]; then
-    rm -f "$_target_bin/rn" "$_target_bin/rnx"
-    ln -s "$NEXUS_DIR/rn" "$_target_bin/rn"
-    ln -s "$NEXUS_DIR/rn" "$_target_bin/rnx"
-    log_ok "Installed 'rn' and 'rnx' to $_target_bin"
+    rm -f "$_target_bin/rnex"
+    # Copy or symlink the script
+    ln -sf "$SCRIPT_LOCATION" "$_target_bin/rnex" 2>/dev/null || cp "$SCRIPT_LOCATION" "$_target_bin/rnex"
+    chmod +x "$_target_bin/rnex"
+    log_ok "Installed 'rnex' executable to ${_BOLD}$_target_bin/rnex${_NC}"
   else
     log_warn "Cannot write to $_target_bin."
     log_info "You can manually create an alias in your shell profile (~/.zshrc or ~/.bashrc):"
-    log_dim "  alias rn=\"$NEXUS_DIR/rn\""
-    log_dim "  alias rnx=\"$NEXUS_DIR/rn\""
+    log_dim "  alias rnex=\"$SCRIPT_LOCATION\""
   fi
 
   # Check PATH
   case ":$PATH:" in
-    *":$_target_bin:"*) ;;
+    *":$_target_bin:"*)
+      log_ok "$_target_bin is already in your PATH!"
+      ;;
     *)
       log_warn "$_target_bin is not in your current PATH."
       log_dim "Add this line to your shell profile (~/.zshrc or ~/.bashrc):"
@@ -413,67 +523,25 @@ cmd_install() {
   esac
 
   printf '\n'
-
-  # Step 2: Review workspace.yaml AI files
-  ensure_yaml
-  printf "${_BOLD}Step 2: Configured AI Context Files${_NC}\n"
-  log_info "Files currently set to sync into every member repository:"
-  yaml_list_ai_files | while read -r _item; do
-    printf "   • %s\n" "$_item"
-  done
-  printf "\n${_DIM}(You can edit the 'ai_files' list directly in $WORKSPACE_YAML anytime)${_NC}\n\n"
-
-  # Step 3: Prompt to add member repos interactively
-  printf "${_BOLD}Step 3: Register Member Repositories${_NC}\n"
-  printf "Would you like to register a repository right now? [y/N]: "
-  read -r _add_repo_choice
-  case "$_add_repo_choice" in
-    y*|Y*)
-      while true; do
-        printf "Enter repository name (e.g. backend): "
-        read -r _rname
-        [ -n "$_rname" ] || break
-
-        printf "Enter absolute or relative path to repo: "
-        read -r _rpath
-        [ -n "$_rpath" ] || break
-
-        _rpath="$(resolve_path "$_rpath")"
-        if [ ! -d "$_rpath" ]; then
-          log_err "Directory does not exist: $_rpath"
-        else
-          cmd_add "$_rname" "$_rpath"
-        fi
-
-        printf "Add another repository? [y/N]: "
-        read -r _again
-        case "$_again" in
-          y*|Y*) ;;
-          *) break ;;
-        esac
-      done
-      ;;
-  esac
-
-  # Step 4: Final sync & status
-  printf "\n${_BOLD}Step 4: Syncing workspace...${_NC}\n"
-  cmd_sync
-  cmd_status
-
-  log_ok "Repo Nexus setup complete! You can now run 'rn' or 'rnx' from your terminal."
+  log_ok "Setup complete! You can now run 'rnex' from any directory."
 }
 
 cmd_help() {
   cat <<'EOF'
 
-  rn / rnx — Repo Nexus CLI
+  rnex — Repo Nexus CLI
   Tooling-independent multi-repo workspace manager with shared AI context.
 
   USAGE
-    rn <command> [arguments]   (or ./rn <command>)
+    rnex [options] <command> [arguments]
 
-  SETUP & CONFIGURATION
-    install                 Run the interactive installation and setup wizard
+  OPTIONS
+    -c, --config <file>     Path to workspace.yaml (executes in the directory where config lives)
+    -h, --help              Show help information
+
+  GLOBAL & WORKSPACE SETUP
+    init [dir]              Initialize a new Repo Nexus workspace in current (or specified) dir
+    install                 Install the 'rnex' CLI command globally into ~/.local/bin
     sync                    Reconcile scope links & AI files from workspace.yaml
 
   REPO MANAGEMENT
@@ -487,20 +555,50 @@ cmd_help() {
     hide <name>             Hide repo from workspace scope (removes repos/<name> link)
 
   EXAMPLES
-    rn install                       # Run interactive setup wizard
-    rn add my-app ~/code/my-app      # Register repo (links & syncs AI context)
-    rn hide my-app                   # Temporarily hide from active indexing
-    rn show my-app                   # Bring back into active scope
-    rn sync                          # Reconcile all links from workspace.yaml
+    rnex init                                   # Initialize workspace in current folder
+    rnex add my-app ~/code/my-app               # Register repo (links & syncs AI context)
+    rnex --config /path/to/workspace.yaml list  # Operate on a specific workspace directly
+    rnex hide my-app                            # Temporarily hide from active indexing
+    rnex show my-app                            # Bring back into active scope
+    rnex sync                                   # Reconcile all links from workspace.yaml
 
 EOF
 }
 
 # ============================================================================
-# Entry Point
+# Entry Point & Option Parsing
 # ============================================================================
 
+CUSTOM_CONFIG=""
+[ -n "$RNEX_CONFIG" ] && CUSTOM_CONFIG="$RNEX_CONFIG"
+
+# Filter --config / -c flags
+ORIG_COUNT=$#
+i=0
+while [ "$i" -lt "$ORIG_COUNT" ]; do
+  i=$((i + 1))
+  case "$1" in
+    --config=*)
+      CUSTOM_CONFIG="${1#*=}"
+      shift
+      ;;
+    --config|-c)
+      [ -n "$2" ] || die "Option $1 requires a file path argument"
+      CUSTOM_CONFIG="$2"
+      shift 2
+      i=$((i + 1))
+      ;;
+    *)
+      _arg="$1"
+      shift
+      set -- "$@" "$_arg"
+      ;;
+  esac
+done
+
 case "${1:-help}" in
+  init)        shift; cmd_init "$@" ;;
+  install)     shift; cmd_install "$@" ;;
   add)         shift; cmd_add "$@" ;;
   remove)      shift; cmd_remove "$@" ;;
   show)        shift; cmd_show "$@" ;;
@@ -508,7 +606,6 @@ case "${1:-help}" in
   list)        shift; cmd_list "$@" ;;
   status)      shift; cmd_status "$@" ;;
   sync)        shift; cmd_sync "$@" ;;
-  install)     shift; cmd_install "$@" ;;
   help|-h|--help) cmd_help ;;
-  *)           die "Unknown command: $1 (try 'rn help')" ;;
+  *)           die "Unknown command: $1 (try 'rnex help')" ;;
 esac
