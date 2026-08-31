@@ -1,0 +1,46 @@
+{
+  "name": "repo-nexus",
+  "version": "0.1.0",
+  "description": "Tooling-independent multi-repo workspace manager with auto-synced AI context via symlinks",
+  "bin": {
+    "repo-nexus": "./rnex",
+    "rnex": "./rnex"
+  },
+  "files": [
+    "rnex",
+    "README.md",
+    "LICENSE",
+    "docs/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nu-nenoi/repo-nexus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nu-nenoi/repo-nexus/issues"
+  },
+  "homepage": "https://github.com/nu-nenoi/repo-nexus#readme",
+  "keywords": [
+    "repo",
+    "repository",
+    "workspace",
+    "multi-repo",
+    "monorepo",
+    "symlink",
+    "ai-context",
+    "cli",
+    "agents",
+    "copilot",
+    "cursor",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "author": "Anton Shramkov",
+  "engines": {
+    "node": ">=14"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ]
+}

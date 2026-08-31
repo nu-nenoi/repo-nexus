@@ -1,0 +1,90 @@
+# ==============================================================================
+# rnex.yaml — Repo Nexus Workspace Configuration (Full Example)
+# ==============================================================================
+# This file is the central manifest for a Repo Nexus workspace.
+# Place it in your workspace root directory and run `rnex sync` to apply.
+#
+# For more information: https://github.com/nu-nenoi/repo-nexus
+
+# ------------------------------------------------------------------------------
+# repos_dir — Directory for repository symlinks
+# ------------------------------------------------------------------------------
+# Relative paths are resolved relative to this config file's location.
+# Default: ./repos
+#
+# Examples:
+#   repos_dir: ./repos              # relative (recommended)
+#   repos_dir: ./workspace/repos    # nested relative path
+#   repos_dir: /opt/dev/repos       # absolute path
+
+repos_dir: ./repos
+
+# ------------------------------------------------------------------------------
+# ai_files — AI context files to auto-sync into member repositories
+# ------------------------------------------------------------------------------
+# Each file listed here is symlinked from the workspace root into every
+# registered member repository. This keeps AI instructions consistent
+# across all your projects.
+#
+# Paths are relative to the workspace root (where this config file lives).
+# Both files and directories are supported.
+#
+# Well-known AI configuration files by tool:
+#   AGENTS.md                         — Universal AI agent instructions
+#   CLAUDE.md                         — Claude Code project instructions
+#   .cursorrules                      — Cursor editor rules
+#   .cursor/rules/                    — Cursor rules directory
+#   .windsurfrules                    — Windsurf / Codeium rules
+#   .windsurf/rules/                  — Windsurf rules directory
+#   .github/copilot-instructions.md   — GitHub Copilot custom instructions
+#   .aider.conf.yml                   — Aider configuration
+#   CONVENTIONS.md                    — Coding conventions (Aider / general)
+#   .clinerules                       — Cline / Roo Code rules
+#   CODEX.md                          — Codex project instructions
+#   .continue/                        — Continue.dev configuration directory
+#   SKILL.md                          — Skills definition (emerging standard)
+
+ai_files:
+  - AGENTS.md
+  - .github/copilot-instructions.md
+  # - .cursorrules
+  # - CLAUDE.md
+  # - .windsurfrules
+  # - CONVENTIONS.md
+  # - toolkit/prompts/review-checklist.md
+
+# ------------------------------------------------------------------------------
+# repos — Member repositories managed by Repo Nexus
+# ------------------------------------------------------------------------------
+# Each repo has:
+#   path:   Absolute or relative path to the repository on disk.
+#           Relative paths are resolved relative to this config file.
+#   scope:  "visible" (default) creates a symlink in repos_dir.
+#           "hidden" removes the symlink but keeps the registration.
+#
+# Examples with absolute paths:
+#   backend-api:
+#     path: /Users/dev/projects/backend-api
+#     scope: visible
+#
+# Examples with relative paths:
+#   frontend:
+#     path: ../frontend-app
+#     scope: visible
+#
+#   shared-lib:
+#     path: ../../libs/shared
+#     scope: hidden
+
+repos:
+  # backend-api:
+  #   path: /Users/dev/projects/backend-api
+  #   scope: visible
+  #
+  # frontend-app:
+  #   path: ../frontend-app
+  #   scope: visible
+  #
+  # analytics:
+  #   path: /Users/dev/projects/analytics-service
+  #   scope: hidden

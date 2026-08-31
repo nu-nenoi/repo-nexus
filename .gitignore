@@ -1,6 +1,9 @@
-# Meta-repo: ignore symlinked repos (they are pointers, not real content)
+# Symlinked repos (managed by rnex, not real content)
 repos/*
 !repos/.gitkeep
 
 # OS
 .DS_Store
+
+# Node (npm packaging)
+node_modules/
