@@ -162,6 +162,16 @@ _ver="$("$TEST_WORKSPACE/rnex" version 2>&1)"
 echo "$_ver" | grep -q "0.1.0" || { fail "Version not displayed"; exit 1; }
 pass
 
+# --------------------------------------------------------------------------
+run_test "Install command (native global installer)"
+_install_dir="$TEST_TMP/custom_bin"
+"$TEST_WORKSPACE/rnex" install "$_install_dir" >/dev/null
+[ -x "$_install_dir/rnex" ] || { fail "rnex not installed to custom bin"; exit 1; }
+[ -x "$_install_dir/repo-nexus" ] || { fail "repo-nexus not installed to custom bin"; exit 1; }
+_reinstall_out="$("$TEST_WORKSPACE/rnex" install "$_install_dir" 2>&1)"
+echo "$_reinstall_out" | grep -qi "already installed" || { fail "Did not detect already installed"; exit 1; }
+pass
+
 # ==========================================================================
 
 echo ""

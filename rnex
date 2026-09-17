@@ -20,11 +20,11 @@ fi
 
 # ---- Logging ---------------------------------------------------------------
 
-log_ok()   { printf "${_G}[✓]${_NC} %s\n" "$1"; }
-log_warn() { printf "${_Y}[!]${_NC} %s\n" "$1"; }
-log_err()  { printf "${_R}[✗]${_NC} %s\n" "$1" >&2; }
-log_info() { printf "${_C}[i]${_NC} %s\n" "$1"; }
-log_dim()  { printf "${_DIM}    %s${_NC}\n" "$1"; }
+log_ok()   { printf '%b[✓]%b %b\n' "$_G" "$_NC" "$1"; }
+log_warn() { printf '%b[!]%b %b\n' "$_Y" "$_NC" "$1"; }
+log_err()  { printf '%b[✗]%b %b\n' "$_R" "$_NC" "$1" >&2; }
+log_info() { printf '%b[i]%b %b\n' "$_C" "$_NC" "$1"; }
+log_dim()  { printf '%b    %b%b\n' "$_DIM" "$1" "$_NC"; }
 die()      { log_err "$1"; exit 1; }
 
 # ---- Path Utilities --------------------------------------------------------
@@ -377,13 +377,13 @@ AGENTS_EOF
   fi
 
   # ---- Auto-detect existing AI config files --------------------------------
-  printf "\n${_BOLD}Scanning for existing AI configuration files...${_NC}\n"
+  printf '\n%b%s%b\n' "$_BOLD" "Scanning for existing AI configuration files..." "$_NC"
 
   # Display detected files
   echo "$_AI_KNOWN_FILES" | while IFS='|' read -r _pattern _desc; do
     [ -n "$_pattern" ] || continue
     if [ -e "$_target_dir/$_pattern" ]; then
-      printf "  ${_G}✓${_NC} Found: ${_BOLD}%s${_NC}  ${_DIM}(%s)${_NC}\n" "$_pattern" "$_desc"
+      printf '  %b✓%b Found: %b%s%b  %b(%s)%b\n' "$_G" "$_NC" "$_BOLD" "$_pattern" "$_NC" "$_DIM" "$_desc" "$_NC"
     fi
   done
 
@@ -488,7 +488,7 @@ cmd_hide() {
 
 cmd_list() {
   require_workspace
-  printf "${_B}%-25s %-12s %s${_NC}\n" "NAME" "SCOPE" "PATH"
+  printf '%b%-25s %-12s %s%b\n' "$_B" "NAME" "SCOPE" "PATH" "$_NC"
   printf '%-25s %-12s %s\n' "----" "-----" "----"
   yaml_list_repos | while read -r _name; do
     _scope="$(yaml_get "$_name" "scope")"
@@ -502,23 +502,23 @@ cmd_status() {
   require_workspace
   ensure_repos_dir
 
-  printf "\n${_B}Repo Nexus Workspace Status${_NC}\n"
+  printf '\n%b%s%b\n' "$_B" "Repo Nexus Workspace Status" "$_NC"
   printf '=%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28
   printf '\n\n'
 
-  printf "${_BOLD}Configured AI Context Files ($RNEX_CONFIG_FILE):${_NC}\n"
+  printf '%bConfigured AI Context Files (%s):%b\n' "$_BOLD" "$RNEX_CONFIG_FILE" "$_NC"
   yaml_list_ai_files | while read -r _item; do
     if [ -e "$NEXUS_DIR/$_item" ]; then
-      printf "  ${_G}✓${_NC} %s\n" "$_item"
+      printf '  %b✓%b %s\n' "$_G" "$_NC" "$_item"
     else
-      printf "  ${_R}✗${_NC} %s (missing from nexus root)\n" "$_item"
+      printf '  %b✗%b %s (missing from nexus root)\n' "$_R" "$_NC" "$_item"
     fi
   done
   printf '\n'
 
-  printf "${_BOLD}Member Repositories:${_NC}\n"
+  printf '%b%s%b\n' "$_BOLD" "Member Repositories:" "$_NC"
   if [ -z "$(yaml_list_repos)" ]; then
-    printf "  ${_DIM}(No repositories registered yet. Use 'rnex add <name> <path>')${_NC}\n"
+    printf '  %b%s%b\n' "$_DIM" "(No repositories registered yet. Use 'rnex add <name> <path>')" "$_NC"
   else
     yaml_list_repos | while read -r _name; do
       _scope="$(yaml_get "$_name" "scope")"
@@ -526,20 +526,20 @@ cmd_status() {
       _link="$REPOS_DIR/$_name"
 
       if [ "$_scope" = "hidden" ]; then
-        printf "  ${_Y}○${_NC} %-22s ${_DIM}hidden${_NC}\n" "$_name"
+        printf '  %b○%b %-22s %bhidden%b\n' "$_Y" "$_NC" "$_name" "$_DIM" "$_NC"
       elif [ -L "$_link" ] && [ -d "$_link" ]; then
-        printf "  ${_G}●${_NC} %-22s ${_G}active${_NC} → %s\n" "$_name" "$_path"
+        printf '  %b●%b %-22s %bactive%b → %s\n' "$_G" "$_NC" "$_name" "$_G" "$_NC" "$_path"
       elif [ -L "$_link" ]; then
-        printf "  ${_R}✗${_NC} %-22s ${_R}BROKEN LINK${_NC} → %s\n" "$_name" "$_path"
+        printf '  %b✗%b %-22s %bBROKEN LINK%b → %s\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "$_path"
       else
-        printf "  ${_R}✗${_NC} %-22s ${_R}MISSING LINK${_NC} (run 'rnex sync')\n" "$_name"
+        printf '  %b✗%b %-22s %bMISSING LINK%b %s\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "(run 'rnex sync')"
       fi
     done
   fi
 
-  printf "\n${_DIM}Workspace:   %s${_NC}\n" "$NEXUS_DIR"
-  printf "${_DIM}Repos Dir:   %s${_NC}\n" "$REPOS_DIR"
-  printf "${_DIM}Config:      %s${_NC}\n\n" "$WORKSPACE_YAML"
+  printf '\n%bWorkspace:   %s%b\n' "$_DIM" "$NEXUS_DIR" "$_NC"
+  printf '%bRepos Dir:   %s%b\n' "$_DIM" "$REPOS_DIR" "$_NC"
+  printf '%bConfig:      %s%b\n\n' "$_DIM" "$WORKSPACE_YAML" "$_NC"
 }
 
 cmd_sync() {
@@ -562,8 +562,43 @@ cmd_sync() {
   log_ok "Sync complete — all scope links and AI context files reconciled"
 }
 
+cmd_install() {
+  _target_bin="${1:-$HOME/.local/bin}"
+  _target_bin="$(resolve_path "$_target_bin")"
+
+  mkdir -p "$_target_bin" 2>/dev/null || true
+  if [ -d "$_target_bin" ] && [ -w "$_target_bin" ]; then
+    if [ -e "$_target_bin/rnex" ] && [ "$(resolve_script_path "$_target_bin/rnex" 2>/dev/null)" = "$SCRIPT_LOCATION" ]; then
+      log_ok "'rnex' is already installed at ${_BOLD}$_target_bin/rnex${_NC}"
+    else
+      rm -f "$_target_bin/rnex" "$_target_bin/repo-nexus"
+      ln -sf "$SCRIPT_LOCATION" "$_target_bin/rnex" 2>/dev/null || cp "$SCRIPT_LOCATION" "$_target_bin/rnex"
+      ln -sf "$SCRIPT_LOCATION" "$_target_bin/repo-nexus" 2>/dev/null || cp "$SCRIPT_LOCATION" "$_target_bin/repo-nexus"
+      chmod +x "$_target_bin/rnex" "$_target_bin/repo-nexus" 2>/dev/null || true
+      log_ok "Installed 'rnex' and 'repo-nexus' into ${_BOLD}$_target_bin${_NC}"
+    fi
+  else
+    log_warn "Cannot write to $_target_bin."
+    log_info "You can manually create an alias in your shell profile (~/.zshrc or ~/.bashrc):"
+    log_dim "  alias rnex=\"$SCRIPT_LOCATION\""
+    log_dim "  alias repo-nexus=\"$SCRIPT_LOCATION\""
+    return 1
+  fi
+
+  case ":$PATH:" in
+    *":$_target_bin:"*)
+      log_ok "$_target_bin is in your PATH"
+      ;;
+    *)
+      log_warn "$_target_bin is not in your current PATH."
+      log_dim "Add this line to your shell profile (~/.zshrc or ~/.bashrc):"
+      log_dim "  export PATH=\"$_target_bin:\$PATH\""
+      ;;
+  esac
+}
+
 cmd_version() {
-  printf "rnex %s\n" "$RNEX_VERSION"
+  printf 'rnex %s\n' "$RNEX_VERSION"
 }
 
 cmd_help() {
@@ -580,8 +615,9 @@ cmd_help() {
     -h, --help              Show help information
     -v, --version           Show version
 
-  WORKSPACE SETUP
+  WORKSPACE & SYSTEM SETUP
     init [dir]              Initialize a new Repo Nexus workspace in current (or specified) dir
+    install [dir]           Install rnex & repo-nexus globally into ~/.local/bin (or custom dir)
     sync                    Reconcile scope links & AI files from $RNEX_CONFIG_FILE
 
   REPO MANAGEMENT
@@ -596,6 +632,7 @@ cmd_help() {
 
   EXAMPLES
     rnex init                                 # Initialize workspace in current folder
+    rnex install                              # Install rnex CLI globally to ~/.local/bin
     rnex add my-app ~/code/my-app             # Register repo (links & syncs AI context)
     rnex add my-app ../my-app                 # Register repo (relative path)
     rnex --config /path/to/rnex.yaml list     # Operate on a specific workspace directly
@@ -639,6 +676,7 @@ done
 
 case "${1:-help}" in
   init)        shift; cmd_init "$@" ;;
+  install)     shift; cmd_install "$@" ;;
   add)         shift; cmd_add "$@" ;;
   remove)      shift; cmd_remove "$@" ;;
   show)        shift; cmd_show "$@" ;;

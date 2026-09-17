@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/github/license/nu-nenoi/repo-nexus)](LICENSE)
 [![POSIX Compatible](https://img.shields.io/badge/POSIX-compatible-success)](#)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey)](#)
+[![FAQ](https://img.shields.io/badge/docs-FAQ-blue.svg)](docs/FAQ.md)
 
 A tooling-independent, zero-dependency workspace orchestrator for multiple repositories with shared, auto-synced AI context across projects using Unix symlinks.
 
@@ -15,6 +16,8 @@ A tooling-independent, zero-dependency workspace orchestrator for multiple repos
 - **Auto-detects existing AI configs** (`CLAUDE.md`, `.cursorrules`, `.windsurfrules`, Copilot instructions, etc.)
 - **Context-aware**: Finds and uses `rnex.yaml` automatically from your current directory or parent tree
 - **Zero dependencies** (pure POSIX shell CLI)
+
+> 💡 **Have questions?** Check out the **[Frequently Asked Questions (FAQ)](docs/FAQ.md)** for architecture deep dives, Git workflows, and AI context strategies.
 
 ---
 
@@ -67,26 +70,32 @@ A tooling-independent, zero-dependency workspace orchestrator for multiple repos
 
 ## Installation
 
-### Via npm (recommended)
+You can install `rnex` using either the native zero-dependency installer or via npm:
+
+### Option 1: Native Installer (Zero Dependencies)
+
+Clone the repository and run the built-in installer:
+
+```bash
+git clone https://github.com/nu-nenoi/repo-nexus.git
+cd repo-nexus
+./rnex install
+```
+*(Installs `rnex` and `repo-nexus` symlinks into `~/.local/bin`, or pass a custom directory like `./rnex install /usr/local/bin`)*
+
+### Option 2: Via npm
 
 ```bash
 npm install -g repo-nexus
 ```
+*(Installs both `repo-nexus` and `rnex` executable commands globally)*
 
-This installs both `repo-nexus` and `rnex` commands globally.
+### Option 3: Shell Alias
 
-### Manual
-
-Clone the repo and add the `rnex` script to your PATH:
-
-```bash
-git clone https://github.com/nu-nenoi/repo-nexus.git
-ln -s "$(pwd)/repo-nexus/rnex" ~/.local/bin/rnex
-```
-
-Or create a shell alias in `~/.zshrc` / `~/.bashrc`:
+Add to your `~/.zshrc` or `~/.bashrc`:
 ```bash
 alias rnex="/path/to/repo-nexus/rnex"
+alias repo-nexus="/path/to/repo-nexus/rnex"
 ```
 
 ---
@@ -166,6 +175,7 @@ repos:
 ```
 
 > See [`docs/rnex.example.yaml`](docs/rnex.example.yaml) for a comprehensive example with all options and supported AI tool configs.
+> For common questions and architecture details, see the [Frequently Asked Questions (FAQ)](docs/FAQ.md).
 
 ---
 
@@ -182,6 +192,7 @@ repos:
 | Command | Description |
 |:---|:---|
 | `rnex init [dir]` | Initialize a new workspace in current (or target) directory |
+| `rnex install [dir]` | Install `rnex` & `repo-nexus` globally into `~/.local/bin` (or custom dir) |
 | `rnex add <name> <path>` | Register repo, create scope symlink, and auto-inject AI context |
 | `rnex remove <name>` | Unregister repo, unlink from scope, and clean up injected AI files |
 | `rnex list` | List all registered repos and visibility scopes |
@@ -239,6 +250,7 @@ repo-nexus/
 ├── AGENTS.md                       # Universal AI coding guidelines
 ├── docs/
 │   ├── AGENTS.sample.md            # Template for AGENTS.md
+│   ├── FAQ.md                      # Frequently Asked Questions
 │   └── rnex.example.yaml           # Full config reference with examples
 ├── .github/
 │   ├── workflows/ci.yml            # GitHub Actions CI workflow
