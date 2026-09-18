@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
 
@@ -12,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master
@@ -28,9 +29,43 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Run Test Suite
         run: |
           chmod +x rnex tests/test_cli.sh
           ./tests/test_cli.sh
+
+  publish:
+    name: Publish to npm
+    needs: [lint, test]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Check and Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+
+          echo "Checking if ${PKG_NAME}@${PKG_VERSION} is already published on npm..."
+          PUBLISHED_VERSION=$(npm view "${PKG_NAME}@${PKG_VERSION}" version 2>/dev/null || true)
+
+          if [ "$PUBLISHED_VERSION" = "$PKG_VERSION" ]; then
+            echo "Version ${PKG_VERSION} of ${PKG_NAME} is already published to npm. Skipping publish."
+          else
+            echo "Publishing ${PKG_NAME}@${PKG_VERSION} to npm..."
+            npm publish --access public
+          fi
