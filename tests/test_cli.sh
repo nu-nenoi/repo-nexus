@@ -7,6 +7,12 @@ set -e
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$DIR/rnex"
 
+# Configure git identity for test repository commits
+export GIT_AUTHOR_NAME="Test Runner"
+export GIT_AUTHOR_EMAIL="test@example.com"
+export GIT_COMMITTER_NAME="Test Runner"
+export GIT_COMMITTER_EMAIL="test@example.com"
+
 # Setup temporary sandbox for testing
 TEST_TMP="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMP"' EXIT
