@@ -82,18 +82,18 @@ jobs:
           # Scope package name to @nu-nenoi for GitHub Packages
           node -e '
             const pkg = require("./package.json");
-            pkg.name = "@nu-nenoi/rnex";
+            pkg.name = "@nu-nenoi/repo-nexus";
             pkg.publishConfig = { registry: "https://npm.pkg.github.com" };
             require("fs").writeFileSync("./package.json", JSON.stringify(pkg, null, 2) + "\n");
           '
 
           PKG_VERSION=$(node -p "require('./package.json').version")
-          echo "Checking if @nu-nenoi/rnex@${PKG_VERSION} is already published on GitHub Packages..."
-          GPR_VERSION=$(npm view "@nu-nenoi/rnex@${PKG_VERSION}" version --registry=https://npm.pkg.github.com 2>/dev/null || true)
+          echo "Checking if @nu-nenoi/repo-nexus@${PKG_VERSION} is already published on GitHub Packages..."
+          GPR_VERSION=$(npm view "@nu-nenoi/repo-nexus@${PKG_VERSION}" version --registry=https://npm.pkg.github.com 2>/dev/null || true)
 
           if [ "$GPR_VERSION" = "$PKG_VERSION" ]; then
-            echo "Version ${PKG_VERSION} of @nu-nenoi/rnex is already published on GitHub Packages. Skipping."
+            echo "Version ${PKG_VERSION} of @nu-nenoi/repo-nexus is already published on GitHub Packages. Skipping."
           else
-            echo "Publishing @nu-nenoi/rnex@${PKG_VERSION} to GitHub Packages..."
+            echo "Publishing @nu-nenoi/repo-nexus@${PKG_VERSION} to GitHub Packages..."
             npm publish --registry=https://npm.pkg.github.com
           fi

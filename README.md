@@ -1,7 +1,7 @@
 # Repo Nexus (`rnex`)
 
 [![CI](https://github.com/nu-nenoi/repo-nexus/actions/workflows/ci.yml/badge.svg)](https://github.com/nu-nenoi/repo-nexus/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/rnex.svg)](https://www.npmjs.com/package/rnex)
+[![npm version](https://img.shields.io/npm/v/repo-nexus.svg)](https://www.npmjs.com/package/repo-nexus)
 [![License: MIT](https://img.shields.io/github/license/nu-nenoi/repo-nexus)](LICENSE)
 [![POSIX Compatible](https://img.shields.io/badge/POSIX-compatible-success)](#)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey)](#)
@@ -75,14 +75,14 @@ Install `rnex` via npm, GitHub Packages, or the zero-dependency native installer
 ### Option 1: Via npm (Recommended)
 
 ```bash
-npm install -g rnex
+npm install -g repo-nexus
 ```
-*(Or run instantly without installing using `npx rnex init`)*
+*(Installs both `repo-nexus` and `rnex` commands globally, or run via `npx repo-nexus init`)*
 
 ### Option 2: Via GitHub Packages
 
 ```bash
-npm install -g @nu-nenoi/rnex --registry=https://npm.pkg.github.com
+npm install -g @nu-nenoi/repo-nexus --registry=https://npm.pkg.github.com
 ```
 
 ### Option 3: Native Installer (Zero Dependencies)

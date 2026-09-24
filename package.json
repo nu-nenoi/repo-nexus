@@ -1,10 +1,10 @@
 {
-  "name": "rnex",
+  "name": "repo-nexus",
   "version": "0.1.1",
   "description": "Tooling-independent multi-repo workspace manager with auto-synced AI context via symlinks",
   "bin": {
-    "rnex": "./rnex",
-    "repo-nexus": "./rnex"
+    "repo-nexus": "./rnex",
+    "rnex": "./rnex"
   },
   "files": [
     "rnex",
