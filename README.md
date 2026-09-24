@@ -7,17 +7,26 @@
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey)](#)
 [![FAQ](https://img.shields.io/badge/docs-FAQ-blue.svg)](docs/FAQ.md)
 
-A tooling-independent, zero-dependency workspace orchestrator for multiple repositories with shared, auto-synced AI context across projects using Unix symlinks.
+A **simple, lightweight companion tool** for multi-repo workflows. It links multiple independent repositories and shares universal AI instructions (like `AGENTS.md`) using standard Unix symlinks — **without Git submodules, monorepo migrations, or complex setup**.
 
-- **How to share `AGENTS.md` across multiple repos**: Maintain a single universal source of truth for AI instructions synced automatically across every project.
-- **Multi-repo workspace for Cursor, Claude Code, and Copilot**: Unify fragmented microservices and libraries into one active agent workspace with zero IDE lock-in.
-- **No git submodules, subtrees, or nested git friction**: Each repository keeps its own standalone Git history, remotes, branches, and commits.
-- **AI provider-agnostic**: Works out of the box with `AGENTS.md`, Copilot instructions (`.github/copilot-instructions.md`), Cursor rules (`.cursorrules`), Claude (`CLAUDE.md`), Windsurf (`.windsurfrules`), and custom system prompts.
-- **Automatic AI context injection**: Automatically links shared guidelines into member repos upon `rnex add`.
-- **Context-aware**: Auto-detects `rnex.yaml` from your current directory or parent directory tree.
-- **Zero dependencies**: Pure POSIX shell CLI (`rnex`).
+- **No Git Submodules or Nested Git Friction**: Keep your repositories completely independent. No detached HEADs, no `.gitmodules`, and no merge conflicts between repos.
+- **A Lean Companion, Not a Workspace Replacer**: It does not replace your editor, terminal, build tools, or package manager. It is a tiny (~20 KB) helper that seamlessly complements your existing workflow.
+- **Unified Workspace for AI Coding Assistants**: Open one folder to give Cursor, Claude Code, GitHub Copilot, or Antigravity complete cross-repo visibility.
+- **Single Source of Truth for AI Guidelines**: Share and sync `AGENTS.md`, Copilot instructions (`.github/copilot-instructions.md`), Cursor rules (`.cursorrules`), Claude instructions (`CLAUDE.md`), and custom prompts across all projects.
+- **Zero Dependencies**: Pure POSIX shell CLI (`rnex`). Works out of the box with zero external runtimes required.
 
 > 💡 **Have questions?** Check out the **[Frequently Asked Questions (FAQ)](docs/FAQ.md)** for architecture deep dives, Git workflows, and AI context strategies.
+
+---
+
+## What Repo Nexus Is (and What It Isn't)
+
+| What It Is | What It Isn't |
+| :--- | :--- |
+| **A lightweight companion utility** (~20 KB POSIX script). | **NOT a replacement for your workspace or tools.** It doesn't replace VS Code, Cursor, JetBrains, or your terminal. |
+| **A simple symlink manager** that groups existing repos into one folder for convenience. | **NOT a build tool or monorepo orchestrator.** It doesn't manage builds or replace tools like Nx, Turborepo, Cargo, or Gradle. |
+| **Zero Git friction.** Repositories remain normal, autonomous Git repos. | **NOT Git submodules or subtrees.** No `.gitmodules` files, no detached HEADs, no commit coordination lock-in. |
+| **Non-invasive.** If you delete the workspace, your repos remain completely untouched. | **NOT a proprietary platform.** No background daemons, no database, no vendor lock-in. |
 
 ---
 
@@ -54,14 +63,14 @@ A tooling-independent, zero-dependency workspace orchestrator for multiple repos
 
 ## Key Principles
 
-1. **Symlink Write-Through**:
-   Symlinks are transparent pointers. When an AI agent or developer edits `repos/backend/src/index.ts`, the OS resolves the link and writes directly to the source repository on disk.
+1. **No Git Submodules (Complete Repository Autonomy)**:
+   Member repositories are never converted into Git submodules or subtrees. Each repository keeps its own standalone Git history, remotes, branches, and commits. `rnex` simply links them on your local filesystem.
 
-2. **Autonomous Git Repositories**:
-   Each member repository retains its own Git history, branches, and remotes. Git operations (commit, push, pull) are executed directly inside each member repo.
+2. **Symlink Write-Through**:
+   Symlinks are transparent pointers resolved by your OS. When you or an AI agent edit `repos/backend/src/index.ts`, the OS resolves the link and writes directly to the source repository on disk.
 
 3. **Single Source of Truth for AI Context**:
-   Edit `AGENTS.md` in Repo Nexus, and changes immediately reflect across all member repositories.
+   Edit `AGENTS.md` once in Repo Nexus, and changes immediately reflect across all member repositories.
 
 4. **Dynamic Workspace Scope**:
    Easily show or hide member repos from the active workspace without modifying disk contents.

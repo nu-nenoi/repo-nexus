@@ -1,12 +1,12 @@
 #!/bin/sh
 # ============================================================================
 # rnex — Repo Nexus CLI
-# Tooling-independent multi-repo workspace manager with auto-synced AI context.
+# Lightweight multi-repo companion with shared AI context (no git submodules).
 # Zero dependencies. POSIX-compatible.
 # ============================================================================
 set -e
 
-RNEX_VERSION="0.1.0"
+RNEX_VERSION="0.1.2"
 RNEX_CONFIG_FILE="rnex.yaml"
 
 # ---- Terminal Colours (auto-detected) -------------------------------------
@@ -605,7 +605,7 @@ cmd_help() {
   cat <<EOF
 
   rnex — Repo Nexus CLI  (v$RNEX_VERSION)
-  Tooling-independent multi-repo workspace manager with shared AI context.
+  Lightweight multi-repo companion with shared AI context (no git submodules).
 
   USAGE
     rnex [options] <command> [arguments]
