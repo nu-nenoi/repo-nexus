@@ -1,7 +1,7 @@
 # Repo Nexus (`rnex`)
 
 [![CI](https://github.com/nu-nenoi/repo-nexus/actions/workflows/ci.yml/badge.svg)](https://github.com/nu-nenoi/repo-nexus/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/repo-nexus.svg)](https://www.npmjs.com/package/repo-nexus)
+[![npm version](https://img.shields.io/npm/v/rnex.svg)](https://www.npmjs.com/package/rnex)
 [![License: MIT](https://img.shields.io/github/license/nu-nenoi/repo-nexus)](LICENSE)
 [![POSIX Compatible](https://img.shields.io/badge/POSIX-compatible-success)](#)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey)](#)
@@ -9,13 +9,13 @@
 
 A tooling-independent, zero-dependency workspace orchestrator for multiple repositories with shared, auto-synced AI context across projects using Unix symlinks.
 
-- **No git submodules, subtrees, or nested git friction**
-- **No IDE lock-in** (works across VS Code, Cursor, Antigravity, Claude Code, Zed, terminal agents)
-- **AI provider-agnostic** (shares `AGENTS.md`, Copilot instructions, Cursor rules, and custom prompts)
-- **Automatic AI context injection** on repository registration
-- **Auto-detects existing AI configs** (`CLAUDE.md`, `.cursorrules`, `.windsurfrules`, Copilot instructions, etc.)
-- **Context-aware**: Finds and uses `rnex.yaml` automatically from your current directory or parent tree
-- **Zero dependencies** (pure POSIX shell CLI)
+- **How to share `AGENTS.md` across multiple repos**: Maintain a single universal source of truth for AI instructions synced automatically across every project.
+- **Multi-repo workspace for Cursor, Claude Code, and Copilot**: Unify fragmented microservices and libraries into one active agent workspace with zero IDE lock-in.
+- **No git submodules, subtrees, or nested git friction**: Each repository keeps its own standalone Git history, remotes, branches, and commits.
+- **AI provider-agnostic**: Works out of the box with `AGENTS.md`, Copilot instructions (`.github/copilot-instructions.md`), Cursor rules (`.cursorrules`), Claude (`CLAUDE.md`), Windsurf (`.windsurfrules`), and custom system prompts.
+- **Automatic AI context injection**: Automatically links shared guidelines into member repos upon `rnex add`.
+- **Context-aware**: Auto-detects `rnex.yaml` from your current directory or parent directory tree.
+- **Zero dependencies**: Pure POSIX shell CLI (`rnex`).
 
 > 💡 **Have questions?** Check out the **[Frequently Asked Questions (FAQ)](docs/FAQ.md)** for architecture deep dives, Git workflows, and AI context strategies.
 
@@ -70,9 +70,22 @@ A tooling-independent, zero-dependency workspace orchestrator for multiple repos
 
 ## Installation
 
-You can install `rnex` using either the native zero-dependency installer or via npm:
+Install `rnex` via npm, GitHub Packages, or the zero-dependency native installer:
 
-### Option 1: Native Installer (Zero Dependencies)
+### Option 1: Via npm (Recommended)
+
+```bash
+npm install -g rnex
+```
+*(Or run instantly without installing using `npx rnex init`)*
+
+### Option 2: Via GitHub Packages
+
+```bash
+npm install -g @nu-nenoi/rnex --registry=https://npm.pkg.github.com
+```
+
+### Option 3: Native Installer (Zero Dependencies)
 
 Clone the repository and run the built-in installer:
 
@@ -83,14 +96,7 @@ cd repo-nexus
 ```
 *(Installs `rnex` and `repo-nexus` symlinks into `~/.local/bin`, or pass a custom directory like `./rnex install /usr/local/bin`)*
 
-### Option 2: Via npm
-
-```bash
-npm install -g repo-nexus
-```
-*(Installs both `repo-nexus` and `rnex` executable commands globally)*
-
-### Option 3: Shell Alias
+### Option 4: Shell Alias
 
 Add to your `~/.zshrc` or `~/.bashrc`:
 ```bash
