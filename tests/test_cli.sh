@@ -165,7 +165,7 @@ pass
 # --------------------------------------------------------------------------
 run_test "Version command"
 _ver="$("$TEST_WORKSPACE/rnex" version 2>&1)"
-echo "$_ver" | grep -q "0.1.0" || { fail "Version not displayed"; exit 1; }
+echo "$_ver" | grep -q "0.1.2" || { fail "Version not displayed"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
