@@ -3,8 +3,8 @@
   "version": "0.2.0",
   "description": "Lightweight, zero-dependency companion tool for multi-repo workspaces and shared AI context via symlinks (no git submodules)",
   "bin": {
-    "repo-nexus": "./rnex",
-    "rnex": "./rnex"
+    "repo-nexus": "rnex",
+    "rnex": "rnex"
   },
   "files": [
     "rnex",
