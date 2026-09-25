@@ -14,7 +14,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        uses: actions/checkout@v4
 
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master
@@ -31,7 +30,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        uses: actions/checkout@v4
 
       - name: Run Test Suite
         run: |
@@ -39,7 +37,6 @@ jobs:
           ./tests/test_cli.sh
 
   publish:
-    name: Publish to npm & GitHub Packages
     name: Publish to npm & GitHub Packages
     needs: [lint, test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
@@ -57,7 +54,6 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
 
@@ -78,7 +74,7 @@ jobs:
 
       - name: Check and Publish to npm
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PKG_NAME=$(node -p "require('./package.json').name")
           PKG_VERSION=$(node -p "require('./package.json').version")
@@ -87,37 +83,6 @@ jobs:
           PUBLISHED_VERSION=$(npm view "${PKG_NAME}@${PKG_VERSION}" version 2>/dev/null || true)
 
           if [ "$PUBLISHED_VERSION" = "$PKG_VERSION" ]; then
-            echo "Version ${PKG_VERSION} of ${PKG_NAME} is already published to npm. Skipping."
-          else
-            echo "Publishing ${PKG_NAME}@${PKG_VERSION} to npm registry..."
-            npm publish --access public
-          fi
-
-      - name: Publish to GitHub Packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Configuring GitHub Packages registry..."
-          npm config set @nu-nenoi:registry=https://npm.pkg.github.com
-          npm config set //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
-
-          # Scope package name to @nu-nenoi for GitHub Packages
-          node -e '
-            const pkg = require("./package.json");
-            pkg.name = "@nu-nenoi/repo-nexus";
-            pkg.publishConfig = { registry: "https://npm.pkg.github.com" };
-            require("fs").writeFileSync("./package.json", JSON.stringify(pkg, null, 2) + "\n");
-          '
-
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          echo "Checking if @nu-nenoi/repo-nexus@${PKG_VERSION} is already published on GitHub Packages..."
-          GPR_VERSION=$(npm view "@nu-nenoi/repo-nexus@${PKG_VERSION}" version --registry=https://npm.pkg.github.com 2>/dev/null || true)
-
-          if [ "$GPR_VERSION" = "$PKG_VERSION" ]; then
-            echo "Version ${PKG_VERSION} of @nu-nenoi/repo-nexus is already published on GitHub Packages. Skipping."
-          else
-            echo "Publishing @nu-nenoi/repo-nexus@${PKG_VERSION} to GitHub Packages..."
-            npm publish --registry=https://npm.pkg.github.com
             echo "Version ${PKG_VERSION} of ${PKG_NAME} is already published to npm. Skipping."
           else
             echo "Publishing ${PKG_NAME}@${PKG_VERSION} to npm registry..."
