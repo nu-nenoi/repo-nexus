@@ -42,35 +42,19 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Bump Patch Version (on merge to main)
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && !contains(github.event.head_commit.message, '[skip ci]')
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Increment patch version by 1 in package.json (single source of truth)
-          NEW_VERSION=$(npm version patch --no-git-tag-version)
-          NEW_VERSION="${NEW_VERSION#v}"
-          echo "Incremented patch version to ${NEW_VERSION}"
-
-          # Commit and push version bump back to repository
-          git commit -am "chore: bump patch version to ${NEW_VERSION} [skip ci]"
-          git push origin HEAD:${{ github.ref_name }}
 
       - name: Check and Publish to npm
         env:

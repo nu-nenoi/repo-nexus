@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -x "$HOOK_DIR/pre-commit" ]; then
+  exec "$HOOK_DIR/pre-commit" "$@"
+fi

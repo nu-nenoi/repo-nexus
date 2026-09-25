@@ -1,0 +1,41 @@
+#!/bin/sh
+set -e
+
+# Skip version bump if explicitly disabled via environment variable
+if [ -n "$SKIP_VERSION_BUMP" ]; then
+  exit 0
+fi
+
+# Find package.json in the repository root
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+PKG_JSON="$REPO_ROOT/package.json"
+
+if [ ! -f "$PKG_JSON" ]; then
+  exit 0
+fi
+
+# Do not bump if nothing is staged in git
+if git diff --cached --quiet; then
+  exit 0
+fi
+
+# If package.json version is already staged, do not bump again
+if git diff --cached "$PKG_JSON" 2>/dev/null | grep -q '^[+].*"version"[ ]*:'; then
+  exit 0
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  exit 0
+fi
+
+# Increment patch version without creating a git tag
+NEW_VERSION=$(npm version patch --no-git-tag-version)
+NEW_VERSION="${NEW_VERSION#v}"
+
+# Stage the updated package.json
+git add "$PKG_JSON"
+if [ -f "$REPO_ROOT/package-lock.json" ]; then
+  git add "$REPO_ROOT/package-lock.json"
+fi
+
+printf '[repo-nexus] Auto-bumped patch version to %s\n' "$NEW_VERSION"

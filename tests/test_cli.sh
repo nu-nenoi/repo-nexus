@@ -171,7 +171,8 @@ pass
 # --------------------------------------------------------------------------
 run_test "Version command"
 _ver="$("$TEST_WORKSPACE/rnex" version 2>&1)"
-echo "$_ver" | grep -q "0.2.0" || { fail "Version not displayed"; exit 1; }
+_expected_ver="$(awk '/"version"[ ]*:/ { sub(/.*"version"[ ]*:[ ]*"/, ""); sub(/".*/, ""); print; exit }' "$TEST_WORKSPACE/package.json")"
+echo "$_ver" | grep -q "$_expected_ver" || { fail "Version not displayed"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
