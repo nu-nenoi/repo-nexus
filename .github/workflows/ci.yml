@@ -60,7 +60,7 @@ jobs:
       - name: Update npm CLI
         run: npm install -g npm@latest
 
-      - name: Check and Publish to npm
+      - name: Check and Stage Publish to npm
         run: |
           PKG_NAME=$(node -p "require('./package.json').name")
           PKG_VERSION=$(node -p "require('./package.json').version")
@@ -69,10 +69,10 @@ jobs:
           PUBLISHED_VERSION=$(npm view "${PKG_NAME}@${PKG_VERSION}" version 2>/dev/null || true)
 
           if [ "$PUBLISHED_VERSION" = "$PKG_VERSION" ]; then
-            echo "Version ${PKG_VERSION} of ${PKG_NAME} is already published to npm. Skipping."
+            echo "Version ${PKG_VERSION} of ${PKG_NAME} is already published to npm. Skipping publish."
           else
-            echo "Publishing ${PKG_NAME}@${PKG_VERSION} to npm registry via Trusted Publisher..."
-            npm publish --provenance --access public
+            echo "Staging ${PKG_NAME}@${PKG_VERSION} on npm..."
+            npm stage publish
           fi
 
       - name: Publish to GitHub Packages
