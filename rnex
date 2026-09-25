@@ -2,6 +2,7 @@
 # ============================================================================
 # rnex — Repo Nexus CLI
 # Lightweight multi-repo companion with shared AI context (no git submodules).
+# Lightweight multi-repo companion with shared AI context (no git submodules).
 # Zero dependencies. POSIX-compatible.
 # ============================================================================
 set -e
@@ -1215,6 +1216,7 @@ cmd_help() {
   cat <<EOF
 
   rnex — Repo Nexus CLI  (v$RNEX_VERSION)
+  Lightweight multi-repo companion with shared AI context (no git submodules).
   Lightweight multi-repo companion with shared AI context (no git submodules).
 
   USAGE
