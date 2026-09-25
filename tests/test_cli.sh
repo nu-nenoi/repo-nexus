@@ -32,9 +32,15 @@ git -C "$TEST_REPO" commit -m "init" -q
 # Copy CLI to isolated test workspace
 cp "$CLI" "$TEST_WORKSPACE/rnex"
 chmod +x "$TEST_WORKSPACE/rnex"
-# Copy docs for AGENTS.sample.md
+if [ -f "$DIR/package.json" ]; then
+  cp "$DIR/package.json" "$TEST_WORKSPACE/package.json"
+fi
+# Copy docs and toolkit for templates and built-in plugins
 if [ -d "$DIR/docs" ]; then
   cp -r "$DIR/docs" "$TEST_WORKSPACE/docs"
+fi
+if [ -d "$DIR/toolkit" ]; then
+  cp -r "$DIR/toolkit" "$TEST_WORKSPACE/toolkit"
 fi
 
 cd "$TEST_WORKSPACE"
@@ -165,7 +171,7 @@ pass
 # --------------------------------------------------------------------------
 run_test "Version command"
 _ver="$("$TEST_WORKSPACE/rnex" version 2>&1)"
-echo "$_ver" | grep -q "0.1.0" || { fail "Version not displayed"; exit 1; }
+echo "$_ver" | grep -q "0.2.0" || { fail "Version not displayed"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
@@ -176,6 +182,115 @@ _install_dir="$TEST_TMP/custom_bin"
 [ -x "$_install_dir/repo-nexus" ] || { fail "repo-nexus not installed to custom bin"; exit 1; }
 _reinstall_out="$("$TEST_WORKSPACE/rnex" install "$_install_dir" 2>&1)"
 echo "$_reinstall_out" | grep -qi "already installed" || { fail "Did not detect already installed"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Plugin list command"
+# Re-add test-app for plugin tests
+"$TEST_WORKSPACE/rnex" add test-app "$TEST_REPO" >/dev/null
+_plist_out="$("$TEST_WORKSPACE/rnex" plugin list 2>&1)"
+echo "$_plist_out" | grep -q "karpathy-llm" || { fail "karpathy-llm not found in plugin list"; exit 1; }
+echo "$_plist_out" | grep -q "available" || { fail "karpathy-llm not marked available"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Plugin info command"
+_pinfo_out="$("$TEST_WORKSPACE/rnex" plugin info karpathy-llm 2>&1)"
+echo "$_pinfo_out" | grep -q "karpathy-llm" || { fail "Plugin name missing from info"; exit 1; }
+echo "$_pinfo_out" | grep -q "KARPATHY_RULES.md" || { fail "KARPATHY_RULES.md missing from info"; exit 1; }
+echo "$_pinfo_out" | grep -q "LLM_WIKI.sample.md" || { fail "LLM_WIKI.sample.md missing from info"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Plugin enable command"
+"$TEST_WORKSPACE/rnex" plugin enable karpathy-llm >/dev/null
+grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" || { fail "karpathy-llm not in rnex.yaml"; exit 1; }
+[ -f "$TEST_WORKSPACE/.agents/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md missing in workspace root"; exit 1; }
+[ -L "$TEST_REPO/.agents/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md symlink missing in member repo"; exit 1; }
+[ -f "$TEST_WORKSPACE/docs/LLM_WIKI.sample.md" ] || { fail "LLM_WIKI.sample.md not initialized in docs/"; exit 1; }
+_status_out="$("$TEST_WORKSPACE/rnex" status 2>&1)"
+echo "$_status_out" | grep -q "karpathy-llm" || { fail "Active plugin not listed in status"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Plugin disable command"
+"$TEST_WORKSPACE/rnex" plugin disable karpathy-llm >/dev/null
+grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" && { fail "karpathy-llm still in rnex.yaml"; exit 1; }
+[ ! -e "$TEST_REPO/.agents/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md not unlinked from repo"; exit 1; }
+_plist_after="$("$TEST_WORKSPACE/rnex" plugin list 2>&1)"
+echo "$_plist_after" | grep -q "available" || { fail "karpathy-llm not returned to available status"; exit 1; }
+pass
+# --------------------------------------------------------------------------
+run_test "Add repo with existing AI file prompts user and extends (Yes answered)"
+_existing_repo="$TEST_TMP/existing-ai-repo"
+mkdir -p "$_existing_repo/src"
+printf '# Repo Original Rules\n- Original custom rule\n' > "$_existing_repo/AGENTS.md"
+git -C "$_existing_repo" init -q
+git -C "$_existing_repo" add .
+git -C "$_existing_repo" commit -m "init" -q
+
+# Piped 'y' to simulate user confirming update
+_add_out="$(printf "y\n" | "$TEST_WORKSPACE/rnex" add existing-app "$_existing_repo" 2>&1)"
+echo "$_add_out" | grep -qi "already exists" || { fail "Did not ask about existing file"; exit 1; }
+[ -f "$_existing_repo/AGENTS.md" ] || { fail "AGENTS.md missing"; exit 1; }
+[ ! -L "$_existing_repo/AGENTS.md" ] || { fail "AGENTS.md was replaced by a symlink instead of extended"; exit 1; }
+grep -q "Repo Original Rules" "$_existing_repo/AGENTS.md" || { fail "Original rules were lost"; exit 1; }
+grep -q "REPO-NEXUS AI CONTEXT" "$_existing_repo/AGENTS.md" || { fail "Workspace context was not extended"; exit 1; }
+# Should not add non-symlink file to .gitignore
+if [ -f "$_existing_repo/.gitignore" ]; then
+  grep -q "AGENTS.md" "$_existing_repo/.gitignore" && { fail "Extended regular file was incorrectly added to .gitignore"; exit 1; }
+fi
+pass
+
+# --------------------------------------------------------------------------
+run_test "Add repo with existing AI file preserves content when No answered"
+_no_repo="$TEST_TMP/no-update-repo"
+mkdir -p "$_no_repo/src"
+printf '# Untouched Rules\n' > "$_no_repo/AGENTS.md"
+git -C "$_no_repo" init -q
+git -C "$_no_repo" add .
+git -C "$_no_repo" commit -m "init" -q
+
+# Piped 'n' to decline updating
+_add_no_out="$(printf "n\n" | "$TEST_WORKSPACE/rnex" add no-app "$_no_repo" 2>&1)"
+echo "$_add_no_out" | grep -qi "already exists" || { fail "Did not ask about existing file"; exit 1; }
+[ ! -L "$_no_repo/AGENTS.md" ] || { fail "AGENTS.md was replaced by symlink"; exit 1; }
+grep -q "Untouched Rules" "$_no_repo/AGENTS.md" || { fail "Original content changed"; exit 1; }
+grep -q "REPO-NEXUS AI CONTEXT" "$_no_repo/AGENTS.md" && { fail "Markers should not be added when No answered"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Sync reconciles and updates extended section without duplicating"
+printf '# Updated Workspace Nexus AI Context\n- New sync rule\n' > "$TEST_WORKSPACE/AGENTS.md"
+"$TEST_WORKSPACE/rnex" sync >/dev/null
+grep -q "Repo Original Rules" "$_existing_repo/AGENTS.md" || { fail "Original rules lost during sync"; exit 1; }
+grep -q "New sync rule" "$_existing_repo/AGENTS.md" || { fail "Extended section was not updated during sync"; exit 1; }
+# Ensure markers only appear once
+_marker_count="$(grep -c "REPO-NEXUS AI CONTEXT (START)" "$_existing_repo/AGENTS.md")"
+[ "$_marker_count" -eq 1 ] || { fail "Marker duplicated during sync: count=$_marker_count"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Remove unextends AI context restoring original file"
+"$TEST_WORKSPACE/rnex" remove existing-app >/dev/null
+[ -f "$_existing_repo/AGENTS.md" ] || { fail "AGENTS.md was deleted upon remove"; exit 1; }
+grep -q "Repo Original Rules" "$_existing_repo/AGENTS.md" || { fail "Original rules lost upon remove"; exit 1; }
+grep -q "REPO-NEXUS AI CONTEXT" "$_existing_repo/AGENTS.md" && { fail "AI markers were not removed upon repo removal"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Add repo with -y flag auto-confirms extending existing AI files"
+_auto_repo="$TEST_TMP/auto-yes-repo"
+mkdir -p "$_auto_repo/src"
+printf '# Pre-existing Custom Rules\n' > "$_auto_repo/AGENTS.md"
+git -C "$_auto_repo" init -q
+git -C "$_auto_repo" add .
+git -C "$_auto_repo" commit -m "init" -q
+
+_add_y_out="$("$TEST_WORKSPACE/rnex" add -y auto-app "$_auto_repo" 2>&1)"
+echo "$_add_y_out" | grep -q "auto" || { fail "Did not auto-confirm"; exit 1; }
+grep -q "Pre-existing Custom Rules" "$_auto_repo/AGENTS.md" || { fail "Custom rules lost"; exit 1; }
+grep -q "REPO-NEXUS AI CONTEXT" "$_auto_repo/AGENTS.md" || { fail "Context not extended"; exit 1; }
 pass
 
 # ==========================================================================

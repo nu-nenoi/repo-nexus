@@ -1,0 +1,9 @@
+name: karpathy-llm
+version: 0.1.0
+description: Andrej Karpathy's agent behavioral principles, context engineering guidelines, and LLM Wiki pattern
+author: nu-nenoi
+homepage: https://github.com/nu-nenoi/repo-nexus
+ai_files:
+  - rules/KARPATHY_RULES.md: .agents/rules/KARPATHY_RULES.md
+templates:
+  - templates/LLM_WIKI.sample.md: docs/LLM_WIKI.sample.md

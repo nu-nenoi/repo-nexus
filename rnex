@@ -6,7 +6,6 @@
 # ============================================================================
 set -e
 
-RNEX_VERSION="0.1.0"
 RNEX_CONFIG_FILE="rnex.yaml"
 
 # ---- Terminal Colours (auto-detected) -------------------------------------
@@ -71,6 +70,24 @@ resolve_script_path() {
 }
 
 SCRIPT_LOCATION="$(resolve_script_path "$0")"
+
+# ---- Version Resolution (package.json is single source of truth) ----------
+
+resolve_version() {
+  _sdir="$(dirname "$SCRIPT_LOCATION")"
+  for _cand in "$_sdir/package.json" "$_sdir/../package.json"; do
+    if [ -f "$_cand" ]; then
+      _v="$(awk '/"version"[ ]*:/ { sub(/.*"version"[ ]*:[ ]*"/, ""); sub(/".*/, ""); print; exit }' "$_cand")"
+      if [ -n "$_v" ]; then
+        printf '%s' "$_v"
+        return 0
+      fi
+    fi
+  done
+  printf '0.0.0'
+}
+
+RNEX_VERSION="$(resolve_version)"
 
 # ---- Workspace Detection (Context-Aware) ----------------------------------
 
@@ -153,6 +170,53 @@ yaml_list_ai_files() {
   '
 }
 
+# Parse list of plugins from rnex.yaml
+yaml_list_plugins() {
+  [ -f "$WORKSPACE_YAML" ] || return 0
+  awk '
+    /^plugins:/ { p=1; next }
+    p && /^[^ #]/ { exit }
+    p && /^[ ]*-[ ]*/ {
+      sub(/^[ ]*-[ ]*/, "");
+      sub(/[ ]*#.*/, "");
+      if (length($0) > 0) print $0
+    }
+  ' "$WORKSPACE_YAML"
+}
+
+yaml_has_plugin() {
+  yaml_list_plugins | grep -qx "$1" 2>/dev/null
+}
+
+yaml_enable_plugin() {
+  _name="$1"
+  yaml_has_plugin "$_name" && return 0
+  if ! grep -q '^plugins:' "$WORKSPACE_YAML" 2>/dev/null; then
+    printf '\nplugins:\n' >> "$WORKSPACE_YAML"
+  fi
+  _tmp="$(mktemp)"
+  awk -v name="$_name" '
+    /^plugins:/ {
+      print
+      printf "  - %s\n", name
+      added=1
+      next
+    }
+    { print }
+  ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
+}
+
+yaml_disable_plugin() {
+  _name="$1"
+  _tmp="$(mktemp)"
+  awk -v name="$_name" '
+    /^plugins:/ { in_plugins=1; print; next }
+    in_plugins && /^[^ #]/ { in_plugins=0 }
+    in_plugins && $0 ~ ("^[ ]*-[ ]*" name "[ ]*($|#)") { next }
+    { print }
+  ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
+}
+
 # Parse list of repos from rnex.yaml
 yaml_list_repos() {
   [ -f "$WORKSPACE_YAML" ] || return 0
@@ -189,8 +253,16 @@ yaml_add_repo() {
   if ! grep -q '^repos:' "$WORKSPACE_YAML"; then
     printf '\nrepos:\n' >> "$WORKSPACE_YAML"
   fi
-  printf '  %s:\n    path: %s\n    scope: visible\n' \
-    "$_name" "$_path" >> "$WORKSPACE_YAML"
+  _tmp="$(mktemp)"
+  awk -v name="$_name" -v path="$_path" '
+    /^repos:/ {
+      print
+      printf "  %s:\n    path: %s\n    scope: visible\n", name, path
+      added=1
+      next
+    }
+    { print }
+  ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
 }
 
 yaml_remove_repo() {
@@ -243,13 +315,68 @@ remove_scope_link() {
   fi
 }
 
+AI_MARKER_START="# --- REPO-NEXUS AI CONTEXT (START) ---"
+AI_MARKER_END="# --- REPO-NEXUS AI CONTEXT (END) ---"
+
+extend_ai_file() {
+  _src="$1"; _dst="$2"
+  [ -f "$_src" ] || return 1
+  [ -f "$_dst" ] || return 1
+  [ "$_src" = "$_dst" ] && return 0
+
+  _tmp="$(mktemp)"
+  if grep -qF "$AI_MARKER_START" "$_dst" 2>/dev/null; then
+    awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" -v src="$_src" '
+      $0 == s {
+        in_b = 1
+        print s
+        while ((getline line < src) > 0) print line
+        close(src)
+        next
+      }
+      $0 == e {
+        in_b = 0
+        print e
+        next
+      }
+      !in_b { print }
+    ' "$_dst" > "$_tmp" && mv "$_tmp" "$_dst"
+  else
+    cp "$_dst" "$_tmp"
+    if [ -s "$_tmp" ] && [ -n "$(tail -c 1 "$_tmp" 2>/dev/null)" ]; then
+      printf '\n' >> "$_tmp"
+    fi
+    printf '\n%s\n' "$AI_MARKER_START" >> "$_tmp"
+    cat "$_src" >> "$_tmp"
+    if [ -s "$_src" ] && [ -n "$(tail -c 1 "$_src" 2>/dev/null)" ]; then
+      printf '\n' >> "$_tmp"
+    fi
+    printf '%s\n' "$AI_MARKER_END" >> "$_tmp"
+    mv "$_tmp" "$_dst"
+  fi
+}
+
+unextend_ai_file() {
+  _dst="$1"
+  [ -f "$_dst" ] || return 0
+  grep -qF "$AI_MARKER_START" "$_dst" 2>/dev/null || return 0
+
+  _tmp="$(mktemp)"
+  awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" '
+    $0 == s { in_b = 1; next }
+    $0 == e { in_b = 0; next }
+    !in_b { print }
+  ' "$_dst" > "$_tmp" && mv "$_tmp" "$_dst"
+}
+
 inject_ai_files() {
   _name="$1"
+  _extend_decision="${2:-yes}"
   _repo_path="$(yaml_get "$_name" "path")"
   [ -n "$_repo_path" ] || die "No path recorded for repo '$_name'"
   [ -d "$_repo_path" ] || die "Repo path does not exist: $_repo_path"
 
-  yaml_list_ai_files | while read -r _item; do
+  yaml_list_all_ai_files | while read -r _item; do
     [ -n "$_item" ] || continue
 
     _source="$NEXUS_DIR/$_item"
@@ -261,7 +388,16 @@ inject_ai_files() {
     fi
 
     if [ -e "$_target" ] && [ ! -L "$_target" ]; then
-      log_warn "Existing non-symlink file found, skipping: $_target"
+      if [ "$_extend_decision" = "no" ]; then
+        log_info "Preserved existing file unchanged: $_item in $(basename "$_repo_path")"
+        continue
+      fi
+      if [ -f "$_source" ] && [ -f "$_target" ]; then
+        extend_ai_file "$_source" "$_target"
+        log_ok "Extended AI context: $_item in $(basename "$_repo_path")"
+      else
+        log_warn "Existing non-regular file found, skipping: $_target"
+      fi
       continue
     fi
 
@@ -281,12 +417,15 @@ eject_ai_files() {
   _repo_path="$(yaml_get "$_name" "path")"
   [ -n "$_repo_path" ] || die "No path recorded for repo '$_name'"
 
-  yaml_list_ai_files | while read -r _item; do
+  yaml_list_all_ai_files | while read -r _item; do
     [ -n "$_item" ] || continue
     _target="$_repo_path/$_item"
     if [ -L "$_target" ]; then
       rm -f "$_target"
       log_ok "Ejected AI context: $_item from $(basename "$_repo_path")"
+    elif [ -f "$_target" ] && grep -qF "$AI_MARKER_START" "$_target" 2>/dev/null; then
+      unextend_ai_file "$_target"
+      log_ok "Removed workspace AI context from: $_item in $(basename "$_repo_path")"
     fi
   done
 }
@@ -296,8 +435,11 @@ _gitignore_add() {
   _gi="$_repo_path/.gitignore"
   _header_written=0
 
-  yaml_list_ai_files | while read -r _item; do
+  yaml_list_all_ai_files | while read -r _item; do
     [ -n "$_item" ] || continue
+    if [ ! -L "$_repo_path/$_item" ]; then
+      continue
+    fi
     if [ -f "$_gi" ] && grep -qxF "$_item" "$_gi" 2>/dev/null; then
       continue
     fi
@@ -309,6 +451,152 @@ _gitignore_add() {
     fi
     printf '%s\n' "$_item" >> "$_gi"
     log_dim "Added '$_item' to .gitignore in $(basename "$_repo_path")"
+  done
+}
+
+# ---- Plugin Engine --------------------------------------------------------
+
+find_plugin_dir() {
+  _query="$1"
+  _sdir="$(dirname "$SCRIPT_LOCATION")"
+  for _cand in \
+    "$NEXUS_DIR/.nexus/plugins/$_query" \
+    "$NEXUS_DIR/plugins/$_query" \
+    "$NEXUS_DIR/toolkit/plugins/$_query" \
+    "$_sdir/toolkit/plugins/$_query"; do
+    if [ -f "$_cand/plugin.yaml" ]; then
+      printf '%s' "$_cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
+list_all_available_plugin_dirs() {
+  _sdir="$(dirname "$SCRIPT_LOCATION")"
+  _dirs=""
+  for _parent in \
+    "$_sdir/toolkit/plugins" \
+    "$NEXUS_DIR/toolkit/plugins" \
+    "$NEXUS_DIR/.nexus/plugins" \
+    "$NEXUS_DIR/plugins"; do
+    if [ -d "$_parent" ]; then
+      for _sub in "$_parent"/*; do
+        if [ -d "$_sub" ] && [ -f "$_sub/plugin.yaml" ]; then
+          _b="$(basename "$_sub")"
+          case " $_dirs " in
+            *" $_b "*) ;;
+            *)
+              _dirs="$_dirs $_b"
+              printf '%s\n' "$_sub"
+              ;;
+          esac
+        fi
+      done
+    fi
+  done
+}
+
+plugin_get_field() {
+  _pdir="$1"; _fld="$2"
+  [ -f "$_pdir/plugin.yaml" ] || return 1
+  awk -v fld="$_fld" '
+    $0 ~ ("^" fld ":") {
+      sub("^" fld ":[ ]*", "");
+      sub(/[ ]*#.*/, "");
+      print
+    }
+  ' "$_pdir/plugin.yaml"
+}
+
+plugin_list_ai_files() {
+  _pdir="$1"
+  [ -f "$_pdir/plugin.yaml" ] || return 0
+  awk '
+    /^ai_files:/ { a=1; next }
+    a && /^[^ #]/ { exit }
+    a && /^[ ]*-[ ]*/ {
+      sub(/^[ ]*-[ ]*/, "");
+      sub(/[ ]*#.*/, "");
+      if (length($0) > 0) print $0
+    }
+  ' "$_pdir/plugin.yaml"
+}
+
+plugin_list_templates() {
+  _pdir="$1"
+  [ -f "$_pdir/plugin.yaml" ] || return 0
+  awk '
+    /^templates:/ { t=1; next }
+    t && /^[^ #]/ { exit }
+    t && /^[ ]*-[ ]*/ {
+      sub(/^[ ]*-[ ]*/, "");
+      sub(/[ ]*#.*/, "");
+      if (length($0) > 0) print $0
+    }
+  ' "$_pdir/plugin.yaml"
+}
+
+# Resolve all AI context files: directly configured in rnex.yaml + enabled plugins
+yaml_list_all_ai_files() {
+  yaml_list_ai_files
+  yaml_list_plugins | while read -r _pname; do
+    [ -n "$_pname" ] || continue
+    _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+    [ -n "$_pdir" ] || continue
+    plugin_list_ai_files "$_pdir" | while read -r _entry; do
+      [ -n "$_entry" ] || continue
+      _dest="${_entry#*:}"
+      _dest="$(printf '%s' "$_dest" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      printf '%s\n' "$_dest"
+    done
+  done
+}
+
+sync_plugins() {
+  yaml_list_plugins | while read -r _pname; do
+    [ -n "$_pname" ] || continue
+    _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+    if [ -z "$_pdir" ]; then
+      log_warn "Plugin '$_pname' declared in config but not found on disk"
+      continue
+    fi
+
+    # Link AI files into workspace root if not already present or symlinked
+    plugin_list_ai_files "$_pdir" | while read -r _item; do
+      [ -n "$_item" ] || continue
+      _s="${_item%%:*}"
+      _d="${_item#*:}"
+      _s="$(printf '%s' "$_s" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      _d="$(printf '%s' "$_d" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      _src_path="$_pdir/$_s"
+      _dest_path="$NEXUS_DIR/$_d"
+
+      if [ -f "$_src_path" ]; then
+        if [ ! -e "$_dest_path" ] || [ -L "$_dest_path" ]; then
+          mkdir -p "$(dirname "$_dest_path")"
+          rm -f "$_dest_path"
+          ln -s "$_src_path" "$_dest_path"
+        fi
+      fi
+    done
+
+    # Initialize templates if present and dest doesn't exist
+    plugin_list_templates "$_pdir" | while read -r _item; do
+      [ -n "$_item" ] || continue
+      _s="${_item%%:*}"
+      _d="${_item#*:}"
+      _s="$(printf '%s' "$_s" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      _d="$(printf '%s' "$_d" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      _src_path="$_pdir/$_s"
+      _dest_path="$NEXUS_DIR/$_d"
+
+      if [ -f "$_src_path" ] && [ ! -f "$_dest_path" ]; then
+        mkdir -p "$(dirname "$_dest_path")"
+        cp "$_src_path" "$_dest_path"
+        log_ok "Initialized template: $_d"
+      fi
+    done
   done
 }
 
@@ -434,21 +722,111 @@ YAML_EOF
   log_dim "3. See docs/rnex.example.yaml for a full configuration reference"
 }
 
+# ---- Interactive Prompts ---------------------------------------------------
+
+prompt_confirm() {
+  _prompt="$1"
+  _assume="$2"
+  if [ "$_assume" = "y" ]; then
+    printf '%b%s%b [y/N]: y (auto)\n' "$_BOLD" "$_prompt" "$_NC"
+    return 0
+  fi
+  if [ "$_assume" = "n" ]; then
+    printf '%b%s%b [y/N]: n (auto)\n' "$_BOLD" "$_prompt" "$_NC"
+    return 1
+  fi
+
+  printf '%b%s%b [y/N]: ' "$_BOLD" "$_prompt" "$_NC"
+  _reply=""
+  if [ -t 0 ]; then
+    read -r _reply || _reply="n"
+  elif read -r _reply 2>/dev/null; then
+    printf '%s\n' "$_reply"
+  else
+    _reply="n"
+    printf 'n\n'
+  fi
+
+  case "$_reply" in
+    [yY]|[yY][eE][sS]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 cmd_add() {
   require_workspace
-  _name="$1"; _path="$2"
-  [ -n "$_name" ] || die "Usage: rnex add <name> <path>"
-  [ -n "$_path" ] || die "Usage: rnex add <name> <path>"
+  _assume=""
+  _name=""
+  _path=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -y|--yes) _assume="y" ;;
+      -n|--no)  _assume="n" ;;
+      *)
+        if [ -z "$_name" ]; then
+          _name="$1"
+        elif [ -z "$_path" ]; then
+          _path="$1"
+        else
+          die "Unexpected argument: $1"
+        fi
+        ;;
+    esac
+    shift
+  done
+
+  [ -n "$_name" ] || die "Usage: rnex add [-y|--yes] <name> <path>"
+  [ -n "$_path" ] || die "Usage: rnex add [-y|--yes] <name> <path>"
 
   yaml_has_repo "$_name" && die "Repo '$_name' is already registered in $RNEX_CONFIG_FILE"
 
   _path="$(resolve_path "$_path")"
   [ -d "$_path" ] || die "Directory does not exist: $_path"
 
+  # Check if any AI context files already exist in member repository
+  _existing_ai_files=""
+  _existing_count=0
+  _all_ai="$(yaml_list_all_ai_files)"
+  while IFS= read -r _item; do
+    [ -n "$_item" ] || continue
+    if [ -e "$_path/$_item" ] && [ ! -L "$_path/$_item" ]; then
+      _existing_ai_files="${_existing_ai_files}${_item}
+"
+      _existing_count=$((_existing_count + 1))
+    fi
+  done <<EOF
+$_all_ai
+EOF
+
+  _extend_decision="yes"
+  if [ "$_existing_count" -gt 0 ]; then
+    printf '\n'
+    log_warn "Existing AI context file(s) found in $(basename "$_path"):"
+    echo "$_existing_ai_files" | while read -r _f; do
+      if [ -n "$_f" ]; then
+        log_dim "- $_f"
+      fi
+    done
+    printf '\n'
+    if [ "$_existing_count" -eq 1 ]; then
+      _single_file="$(echo "$_existing_ai_files" | head -n 1)"
+      _prompt_msg="File '$_single_file' already exists in '$(basename "$_path")'. Update (extend) with workspace AI context?"
+    else
+      _prompt_msg="Update (extend) existing AI files in '$(basename "$_path")' with workspace AI context?"
+    fi
+
+    if prompt_confirm "$_prompt_msg" "$_assume"; then
+      _extend_decision="yes"
+    else
+      _extend_decision="no"
+    fi
+  fi
+
   ensure_repos_dir
   yaml_add_repo "$_name" "$_path"
   create_scope_link "$_name"
-  inject_ai_files "$_name"
+  inject_ai_files "$_name" "$_extend_decision"
   printf '\n'
   log_ok "Registered and synchronized repo '${_name}'"
 }
@@ -507,13 +885,32 @@ cmd_status() {
   printf '\n\n'
 
   printf '%bConfigured AI Context Files (%s):%b\n' "$_BOLD" "$RNEX_CONFIG_FILE" "$_NC"
-  yaml_list_ai_files | while read -r _item; do
+  yaml_list_all_ai_files | while read -r _item; do
     if [ -e "$NEXUS_DIR/$_item" ]; then
       printf '  %b✓%b %s\n' "$_G" "$_NC" "$_item"
     else
       printf '  %b✗%b %s (missing from nexus root)\n' "$_R" "$_NC" "$_item"
     fi
   done
+  printf '\n'
+
+  printf '%bActive Plugins:%b\n' "$_BOLD" "$_NC"
+  _active_plugins="$(yaml_list_plugins)"
+  if [ -z "$_active_plugins" ]; then
+    printf '  %b%s%b\n' "$_DIM" "(No plugins enabled. Use 'rnex plugin list')" "$_NC"
+  else
+    echo "$_active_plugins" | while read -r _pname; do
+      [ -n "$_pname" ] || continue
+      _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+      if [ -n "$_pdir" ]; then
+        _ver="$(plugin_get_field "$_pdir" "version")"
+        _desc="$(plugin_get_field "$_pdir" "description")"
+        printf '  %b●%b %-18s %b(v%s)%b %s\n' "$_G" "$_NC" "$_pname" "$_DIM" "${_ver:-0.1.0}" "$_NC" "${_desc:+- $_desc}"
+      else
+        printf '  %b✗%b %-18s %bMISSING%b\n' "$_R" "$_NC" "$_pname" "$_R" "$_NC"
+      fi
+    done
+  fi
   printf '\n'
 
   printf '%b%s%b\n' "$_BOLD" "Member Repositories:" "$_NC"
@@ -547,6 +944,7 @@ cmd_sync() {
   ensure_repos_dir
 
   log_info "Synchronizing workspace from $RNEX_CONFIG_FILE..."
+  sync_plugins
   yaml_list_repos | while read -r _name; do
     _scope="$(yaml_get "$_name" "scope")"
 
@@ -559,7 +957,219 @@ cmd_sync() {
     inject_ai_files "$_name" || true
   done
 
-  log_ok "Sync complete — all scope links and AI context files reconciled"
+  log_ok "Sync complete — all scope links, plugins, and AI context files reconciled"
+}
+
+cmd_plugin_list() {
+  require_workspace
+  printf '\n%b%s%b\n' "$_B" "Repo Nexus Plugins" "$_NC"
+  printf '=%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
+  printf '\n\n'
+
+  list_all_available_plugin_dirs | while read -r _pdir; do
+    [ -n "$_pdir" ] || continue
+    _name="$(plugin_get_field "$_pdir" "name")"
+    [ -n "$_name" ] || _name="$(basename "$_pdir")"
+    _version="$(plugin_get_field "$_pdir" "version")"
+    _desc="$(plugin_get_field "$_pdir" "description")"
+
+    if yaml_has_plugin "$_name"; then
+      printf '  %b[enabled]%b   %b%-15s%b %b(v%s)%b - %s\n' \
+        "$_G" "$_NC" "$_BOLD" "$_name" "$_NC" "$_DIM" "${_version:-0.1.0}" "$_NC" "$_desc"
+    else
+      printf '  %b[available]%b %b%-15s%b %b(v%s)%b - %s\n' \
+        "$_DIM" "$_NC" "$_BOLD" "$_name" "$_NC" "$_DIM" "${_version:-0.1.0}" "$_NC" "$_desc"
+    fi
+  done
+  printf '\n'
+  log_dim "To enable a plugin:  rnex plugin enable <name>"
+  log_dim "To view details:    rnex plugin info <name>"
+  log_dim "To disable:         rnex plugin disable <name>"
+  printf '\n'
+}
+
+cmd_plugin_info() {
+  require_workspace
+  _pname="$1"
+  [ -n "$_pname" ] || die "Usage: rnex plugin info <name>"
+
+  _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+  [ -n "$_pdir" ] || die "Plugin '$_pname' not found."
+
+  _name="$(plugin_get_field "$_pdir" "name")"
+  [ -n "$_name" ] || _name="$_pname"
+  _ver="$(plugin_get_field "$_pdir" "version")"
+  _desc="$(plugin_get_field "$_pdir" "description")"
+  _author="$(plugin_get_field "$_pdir" "author")"
+  _home="$(plugin_get_field "$_pdir" "homepage")"
+
+  if yaml_has_plugin "$_name"; then
+    _status="${_G}enabled${_NC}"
+  else
+    _status="${_DIM}available (not enabled)${_NC}"
+  fi
+
+  printf '\n'
+  printf '%bPlugin:%b       %b%s%b %b(v%s)%b\n' "$_BOLD" "$_NC" "$_BOLD" "$_name" "$_NC" "$_DIM" "${_ver:-0.1.0}" "$_NC"
+  printf '%bStatus:%b       %b\n' "$_BOLD" "$_NC" "$_status"
+  [ -n "$_desc" ] && printf '%bDescription:%b  %s\n' "$_BOLD" "$_NC" "$_desc"
+  [ -n "$_author" ] && printf '%bAuthor:%b       %s\n' "$_BOLD" "$_NC" "$_author"
+  [ -n "$_home" ] && printf '%bHomepage:%b     %s\n' "$_BOLD" "$_NC" "$_home"
+  printf '%bLocation:%b     %s\n' "$_BOLD" "$_NC" "$_pdir"
+
+  printf '\n%bProvided AI Context Files:%b\n' "$_BOLD" "$_NC"
+  plugin_list_ai_files "$_pdir" | while read -r _item; do
+    [ -n "$_item" ] || continue
+    _s="${_item%%:*}"
+    _d="${_item#*:}"
+    _s="$(printf '%s' "$_s" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    _d="$(printf '%s' "$_d" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [ "$_s" = "$_d" ]; then
+      printf '  - %s\n' "$_s"
+    else
+      printf '  - %s → %s\n' "$_s" "$_d"
+    fi
+  done
+
+  _tmpl="$(plugin_list_templates "$_pdir")"
+  if [ -n "$_tmpl" ]; then
+    printf '\n%bTemplates:%b\n' "$_BOLD" "$_NC"
+    echo "$_tmpl" | while read -r _item; do
+      [ -n "$_item" ] || continue
+      _s="${_item%%:*}"
+      _d="${_item#*:}"
+      _s="$(printf '%s' "$_s" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      _d="$(printf '%s' "$_d" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      if [ "$_s" = "$_d" ]; then
+        printf '  - %s\n' "$_s"
+      else
+        printf '  - %s → %s\n' "$_s" "$_d"
+      fi
+    done
+  fi
+  printf '\n'
+}
+
+cmd_plugin_enable() {
+  require_workspace
+  _pname="$1"
+  [ -n "$_pname" ] || die "Usage: rnex plugin enable <name>"
+
+  _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+  [ -n "$_pdir" ] || die "Plugin '$_pname' not found."
+
+  _name="$(plugin_get_field "$_pdir" "name")"
+  [ -n "$_name" ] || _name="$_pname"
+
+  yaml_enable_plugin "$_name"
+  log_ok "Plugin '$_name' enabled in $RNEX_CONFIG_FILE"
+
+  # Link AI files into workspace root
+  plugin_list_ai_files "$_pdir" | while read -r _item; do
+    [ -n "$_item" ] || continue
+    _s="${_item%%:*}"
+    _d="${_item#*:}"
+    _s="$(printf '%s' "$_s" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    _d="$(printf '%s' "$_d" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    _src_path="$_pdir/$_s"
+    _dest_path="$NEXUS_DIR/$_d"
+
+    if [ -f "$_src_path" ]; then
+      mkdir -p "$(dirname "$_dest_path")"
+      rm -f "$_dest_path"
+      ln -s "$_src_path" "$_dest_path"
+      log_ok "Linked plugin asset: $_d"
+    fi
+  done
+
+  # Copy templates if specified and destination doesn't exist
+  plugin_list_templates "$_pdir" | while read -r _item; do
+    [ -n "$_item" ] || continue
+    _s="${_item%%:*}"
+    _d="${_item#*:}"
+    _s="$(printf '%s' "$_s" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    _d="$(printf '%s' "$_d" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    _src_path="$_pdir/$_s"
+    _dest_path="$NEXUS_DIR/$_d"
+
+    if [ -f "$_src_path" ] && [ ! -f "$_dest_path" ]; then
+      mkdir -p "$(dirname "$_dest_path")"
+      cp "$_src_path" "$_dest_path"
+      log_ok "Initialized template: $_d"
+    fi
+  done
+
+  cmd_sync
+  log_ok "Plugin '$_name' active across all member repositories"
+}
+
+cmd_plugin_disable() {
+  require_workspace
+  _pname="$1"
+  [ -n "$_pname" ] || die "Usage: rnex plugin disable <name>"
+
+  _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+  _name="$_pname"
+  if [ -n "$_pdir" ]; then
+    _n="$(plugin_get_field "$_pdir" "name")"
+    [ -n "$_n" ] && _name="$_n"
+  fi
+
+  yaml_has_plugin "$_name" || log_warn "Plugin '$_name' is not enabled in $RNEX_CONFIG_FILE"
+
+  # Clean up from member repositories and workspace root
+  if [ -n "$_pdir" ]; then
+    plugin_list_ai_files "$_pdir" | while read -r _item; do
+      [ -n "$_item" ] || continue
+      _d="${_item#*:}"
+      _d="$(printf '%s' "$_d" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+      # Unlink or unextend from member repos
+      yaml_list_repos | while read -r _rname; do
+        _rpath="$(yaml_get "$_rname" "path")"
+        if [ -n "$_rpath" ]; then
+          if [ -L "$_rpath/$_d" ]; then
+            rm -f "$_rpath/$_d"
+            log_ok "Ejected AI context: $_d from $(basename "$_rpath")"
+          elif [ -f "$_rpath/$_d" ] && grep -qF "$AI_MARKER_START" "$_rpath/$_d" 2>/dev/null; then
+            unextend_ai_file "$_rpath/$_d"
+            log_ok "Removed workspace AI context from: $_d in $(basename "$_rpath")"
+          fi
+        fi
+      done
+
+      # Unlink from workspace root if symlink
+      if [ -L "$NEXUS_DIR/$_d" ]; then
+        rm -f "$NEXUS_DIR/$_d"
+        log_ok "Unlinked plugin asset: $_d"
+      fi
+    done
+  fi
+
+  yaml_disable_plugin "$_name"
+  log_ok "Plugin '$_name' disabled from $RNEX_CONFIG_FILE"
+}
+
+cmd_plugin() {
+  _action="${1:-list}"
+  shift 2>/dev/null || true
+  case "$_action" in
+    list|ls)
+      cmd_plugin_list "$@"
+      ;;
+    info|show)
+      cmd_plugin_info "$@"
+      ;;
+    enable|add)
+      cmd_plugin_enable "$@"
+      ;;
+    disable|remove|rm)
+      cmd_plugin_disable "$@"
+      ;;
+    *)
+      die "Unknown plugin command: $_action (try 'rnex plugin list', 'rnex plugin info <name>', 'rnex plugin enable <name>', 'rnex plugin disable <name>')"
+      ;;
+  esac
 }
 
 cmd_install() {
@@ -621,7 +1231,7 @@ cmd_help() {
     sync                    Reconcile scope links & AI files from $RNEX_CONFIG_FILE
 
   REPO MANAGEMENT
-    add <name> <path>       Register local repo, link to scope & auto-inject AI context
+    add [-y|--yes] <name> <path>  Register local repo, link to scope & sync AI context
     remove <name>           Unregister repo, unlink scope & clean up injected AI files
     list                    List all registered member repos
     status                  Inspect workspace health, active repos, and AI context files
@@ -630,12 +1240,20 @@ cmd_help() {
     show <name>             Make repo visible in workspace (creates repos/<name> link)
     hide <name>             Hide repo from workspace scope (removes repos/<name> link)
 
+  PLUGIN MANAGEMENT
+    plugin [list]           List available and enabled plugins
+    plugin info <name>      Show details of a plugin
+    plugin enable <name>    Enable plugin and sync into member repos
+    plugin disable <name>   Disable plugin and clean up from member repos
+
   EXAMPLES
     rnex init                                 # Initialize workspace in current folder
     rnex install                              # Install rnex CLI globally to ~/.local/bin
     rnex add my-app ~/code/my-app             # Register repo (links & syncs AI context)
-    rnex add my-app ../my-app                 # Register repo (relative path)
+    rnex add -y my-app ../my-app              # Register repo (auto-update existing files)
     rnex --config /path/to/rnex.yaml list     # Operate on a specific workspace directly
+    rnex plugin list                          # List available plugins
+    rnex plugin enable karpathy-llm           # Enable Karpathy LLM plugin
     rnex hide my-app                          # Temporarily hide from active indexing
     rnex show my-app                          # Bring back into active scope
     rnex sync                                 # Reconcile all links from $RNEX_CONFIG_FILE
@@ -684,6 +1302,7 @@ case "${1:-help}" in
   list)        shift; cmd_list "$@" ;;
   status)      shift; cmd_status "$@" ;;
   sync)        shift; cmd_sync "$@" ;;
+  plugin)      shift; cmd_plugin "$@" ;;
   version|-v|--version) cmd_version ;;
   help|-h|--help) cmd_help ;;
   *)           die "Unknown command: $1 (try 'rnex help')" ;;

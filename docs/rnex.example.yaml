@@ -22,9 +22,11 @@ repos_dir: ./repos
 # ------------------------------------------------------------------------------
 # ai_files — AI context files to auto-sync into member repositories
 # ------------------------------------------------------------------------------
-# Each file listed here is symlinked from the workspace root into every
-# registered member repository. This keeps AI instructions consistent
-# across all your projects.
+# Each file listed here is synced from the workspace root into every
+# registered member repository. If a member repository already contains an
+# existing file, it is extended (never replaced) with workspace context.
+# When adding a new repository, rnex prompts whether to update existing files.
+# This keeps AI instructions consistent across all your projects.
 #
 # Paths are relative to the workspace root (where this config file lives).
 # Both files and directories are supported.
@@ -52,6 +54,27 @@ ai_files:
   # - .windsurfrules
   # - CONVENTIONS.md
   # - toolkit/prompts/review-checklist.md
+
+# ------------------------------------------------------------------------------
+# plugins — Workspace plugins and AI instruction packs
+# ------------------------------------------------------------------------------
+# Plugins extend your workspace with curated AI guidelines, context rules,
+# and scaffolding templates. When enabled, plugin context files are automatically
+# synchronized into all registered member repositories during `rnex sync`.
+#
+# Manage plugins with:
+#   rnex plugin list              # View available and active plugins
+#   rnex plugin enable <name>     # Enable and sync into member repos
+#   rnex plugin disable <name>    # Disable and clean up
+#
+# Built-in plugins:
+#   karpathy-llm   — Andrej Karpathy's agent behavioral principles,
+#                    multi-repo context engineering, and LLM Wiki pattern
+#
+# Local / custom plugins can also be placed in .nexus/plugins/<name>/
+
+plugins:
+  # - karpathy-llm
 
 # ------------------------------------------------------------------------------
 # repos — Member repositories managed by Repo Nexus

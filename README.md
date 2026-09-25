@@ -161,9 +161,39 @@ rnex remove my-app
 
 ---
 
+## Plugins & AI Context Packs
+
+Repo Nexus features a zero-dependency plugin architecture. Plugins package curated AI instructions, agent behavioral rules, and architecture templates that are automatically synchronized into member repositories via symlinks.
+
+```bash
+# List available and active plugins
+rnex plugin list
+
+# Inspect plugin details and provided files
+rnex plugin info karpathy-llm
+
+# Enable a plugin across your workspace
+rnex plugin enable karpathy-llm
+
+# Disable a plugin and clean up injected files
+rnex plugin disable karpathy-llm
+```
+
+### Built-in Plugin: `karpathy-llm`
+The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns and context engineering principles:
+* **The 4 Cardinal Agent Rules** (`.agents/rules/KARPATHY_RULES.md`):
+  1. *Think Before Coding:* Formulate explicit assumptions, boundary checks, and trade-offs before writing code.
+  2. *Simplicity First:* Minimal abstractions, readable implementations, zero speculative boilerplate.
+  3. *Surgical Changes:* Minimal blast radius, preserved comments/docstrings, and tight diffs.
+  4. *Goal-Driven Execution:* Upfront verification criteria, automated tests, and diff inspection.
+* **Multi-Repo Context Engineering:** Guidelines for AI agents respecting member repo autonomy and symlink write-through semantics.
+* **LLM Wiki Knowledge Pattern** (`docs/LLM_WIKI.sample.md`): Persistent, indexed multi-repo architecture documentation that compounds across agent sessions.
+
+---
+
 ## Workspace Configuration (`rnex.yaml`)
 
-The configuration file defines repo symlink directory, AI context files to sync, and registered repositories:
+The configuration file defines repo symlink directory, AI context files to sync, enabled plugins, and registered repositories:
 
 ```yaml
 # Directory for repository symlinks (relative or absolute)
@@ -175,6 +205,10 @@ ai_files:
   - .github/copilot-instructions.md
   # - .cursorrules
   # - CLAUDE.md
+
+# Workspace plugins
+plugins:
+  - karpathy-llm
 
 # Member repositories
 repos:
@@ -208,13 +242,15 @@ repos:
 |:---|:---|
 | `rnex init [dir]` | Initialize a new workspace in current (or target) directory |
 | `rnex install [dir]` | Install `rnex` & `repo-nexus` globally into `~/.local/bin` (or custom dir) |
-| `rnex add <name> <path>` | Register repo, create scope symlink, and auto-inject AI context |
+| `rnex add [-y] <name> <path>` | Register repo, create scope symlink, and sync AI context (prompts to extend existing files) |
 | `rnex remove <name>` | Unregister repo, unlink from scope, and clean up injected AI files |
 | `rnex list` | List all registered repos and visibility scopes |
 | `rnex status` | Display status of AI context files, active member repos, and paths |
 | `rnex show <name>` | Make a hidden repo visible in workspace |
 | `rnex hide <name>` | Hide a repo from active workspace indexing |
 | `rnex sync` | Reconcile all scope symlinks and AI context files from config |
+
+> **Note on Existing AI Files**: Pre-existing files in member repositories are never overwritten. When adding a new repo, `rnex` prompts whether to update existing files and safely extends them with workspace context between managed markers. Pass `-y` / `--yes` to auto-confirm.
 
 ---
 

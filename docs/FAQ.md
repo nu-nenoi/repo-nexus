@@ -6,7 +6,10 @@ This document answers common questions about **Repo Nexus (`rnex`)**, why it exi
 
 ## Table of Contents
 
-- [Overview & Value Proposition](#overview--value-proposition)
+- [General Setup & Philosophy](#general-setup--philosophy)
+  - [What is repo-nexus?](#what-is-repo-nexus)
+  - [How does it differ from "monster" monorepo orchestrators?](#how-does-it-differ-from-monster-monorepo-orchestrators)
+  - [Does it require Git Submodules?](#does-it-require-git-submodules)
   - [Why do I need rnex?](#why-do-i-need-rnex)
   - [Who is this useful and interesting for?](#who-is-this-useful-and-interesting-for)
   - [Why not just use a monorepo or Git submodules?](#why-not-just-use-a-monorepo-or-git-submodules)
@@ -16,9 +19,13 @@ This document answers common questions about **Repo Nexus (`rnex`)**, why it exi
   - [Can I use Git commands (pull, push, commit) on symlinked repos?](#can-i-use-git-commands-pull-push-commit-on-symlinked-repos)
   - [Can AI agents create and modify files inside member repos via symlinks?](#can-ai-agents-create-and-modify-files-inside-member-repos-via-symlinks)
   - [Will rnex interfere with Git branches, remotes, or commit histories?](#will-rnex-interfere-with-git-branches-remotes-or-commit-histories)
-- [AI Context Strategy: Workspace vs. Member Repos](#ai-context-strategy-workspace-vs-member-repos)
+- [AI Context & IDE Workspace Integration](#ai-context--ide-workspace-integration)
+  - [How does it optimize workspaces for IDEs?](#how-does-it-optimize-workspaces-for-ides)
+  - [How does it support accurate AI context?](#how-does-it-support-accurate-ai-context)
+  - [What is the risk of tool lock-in?](#what-is-the-risk-of-tool-lock-in)
   - [Do I need rnex to inject symlinks into my member repos?](#do-i-need-rnex-to-inject-symlinks-into-my-member-repos)
   - [How should AI instructions be structured across repos? (Committed files vs. symlinks)](#how-should-ai-instructions-be-structured-across-repos-committed-files-vs-symlinks)
+  - [What happens if a member repository already has an existing AI configuration file?](#what-happens-if-a-member-repository-already-has-an-existing-ai-configuration-file)
   - [Which AI assistants and configuration files are supported?](#which-ai-assistants-and-configuration-files-are-supported)
   - [How do I prevent AI agents from running out of context or token bloat?](#how-do-i-prevent-ai-agents-from-running-out-of-context-or-token-bloat)
 - [Platforms & Setup](#platforms--setup)
@@ -29,7 +36,25 @@ This document answers common questions about **Repo Nexus (`rnex`)**, why it exi
 
 ---
 
-## Overview & Value Proposition
+## General Setup & Philosophy
+
+### What is repo-nexus?
+
+It is a zero-dependency workspace utility designed to treat multiple independent Git repositories as subprojects under a single, unified development workspace.
+
+---
+
+### How does it differ from "monster" monorepo orchestrators?
+
+Unlike heavy, invasive tools that take over your entire terminal workflow, execute automated pipelines, or bundle massive dependency trees, repo-nexus acts strictly as a lightweight, metadata-only layout manager. It does not inject wrapper scripts or run automated build pipelines.
+
+---
+
+### Does it require Git Submodules?
+
+No. It manages the directory mappings internally via configuration files. Your independent Git repositories remain clean, isolated, and completely untouched at the Git history level.
+
+---
 
 ### Why do I need rnex?
 
@@ -107,7 +132,25 @@ The Repo Nexus workspace ignores `repos/` in `.gitignore`, ensuring your workspa
 
 ---
 
-## AI Context Strategy: Workspace vs. Member Repos
+## AI Context & IDE Workspace Integration
+
+### How does it optimize workspaces for IDEs?
+
+By defining your multi-repo structure through repo-nexus, it bridges the gap across decoupled project folders to generate seamless multi-root workspaces for modern code editors.
+
+---
+
+### How does it support accurate AI context?
+
+It serves as an informational metadata layer across repositories. It allows you to synchronize and propagate AI rule parameters, prompt setups, and documentation frameworks (like `.cursorrules`, `AGENTS.md`, or `CLAUDE.md`) globally so that coding assistants see the entire multi-repo architecture as one coherent context.
+
+---
+
+### What is the risk of tool lock-in?
+
+Zero. Because repo-nexus only overlays structural configuration metadata rather than refactoring your code, removing it from your stack is as simple as deleting its single config file. Your codebases remain independent and functional.
+
+---
 
 ### Do I need rnex to inject symlinks into my member repos?
 
@@ -135,6 +178,16 @@ The cleanest architecture separates concerns into two distinct layers:
 - **Shared with the Team**: Anyone on the team who clones the repo immediately gets the rules without needing `rnex` or symlinks.
 - **No Path Fragility**: Symlinks pointing back to an external workspace break if cloned on another computer or Windows. Committed files never break.
 - **Repository Autonomy**: Each project remains self-documenting and independent.
+
+---
+
+### What happens if a member repository already has an existing AI configuration file?
+
+`rnex` will **never replace or overwrite** existing AI files in a member repository.
+
+When you run `rnex add <name> <path>`, `rnex` detects any pre-existing AI context files (such as `AGENTS.md` or `.cursorrules`) and prompts you whether to update them. If confirmed, `rnex` **extends** the existing file by appending the workspace context enclosed within clearly demarcated markers (`# --- REPO-NEXUS AI CONTEXT ---`).
+
+This preserves all repository-specific rules while layering universal workspace guidelines on top. Subsequent `rnex sync` calls keep the extended block synchronized without duplicating content or modifying the repository's custom instructions. Pass `-y` / `--yes` to `rnex add` to auto-confirm updating existing files.
 
 ---
 
