@@ -1,25 +1,24 @@
 ---
 title: "Concept or Entity Name"
-tags: [domain, architecture]
+tags: []
 last_updated: YYYY-MM-DD
-# Typed frontmatter relations (paths relative to /wiki/)
-sources:
-  - "raw/source-document.md"
-related:
-  - "concepts/another-concept.md"
-extends: []
-contradicts: []
-mentioned_in: []
+# Typed relation fields — paths relative to /wiki/
+sources: []          # /raw/ files this page was derived from
+related: []          # thematically related wiki pages
+extends: []          # pages this one builds upon or specialises
+contradicts: []      # pages with conflicting information
+mentioned_in: []     # pages that link to this one (maintained by lint)
 ---
 
 # Concept or Entity Name
 
 ## Summary
-A concise, 1-2 paragraph description of the concept, entity, or decision.
+A concise, 1-2 paragraph summary of the concept, entity, architecture decision, or contract.
 
-## Key Insights & Details
-* **Core Rule/Fact:** Key principle or architectural requirement.
-* **Boundary & Scope:** Where this applies and how it interfaces with other components.
+## Key Facts & Insights
+* **Core Insight:** Grounded directly in source material from `/raw/`.
+* **Scope & Boundaries:** Context of applicability and interfaces with other components.
 
-## Relations & References
-* Extends or references [Another Concept](./another-concept.md) where contextually relevant in prose.
+## Contextual Links
+* Reference [Related Concept](./another-concept.md) where contextually useful in prose.
+*(Note: The relation graph lives in frontmatter, not in prose links. Agents traverse the graph by reading frontmatter fields, not by scanning body text.)*

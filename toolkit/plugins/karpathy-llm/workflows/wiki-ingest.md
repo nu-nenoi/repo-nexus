@@ -6,48 +6,55 @@ Universal workflow for decomposing and ingesting raw source materials into atomi
 
 ## Ingestion Protocol
 
-1. **Intake Discovery:**
-   - Scan `/raw/` for source materials (articles, transcripts, documents, research notes, meeting logs) not yet logged in `/wiki/_log.md`.
-   - Never ingest partial or in-progress files.
+1. **Scan Intake:**
+   - Scan `/raw/` for source materials (articles, transcripts, documents, research notes, meeting logs) not yet recorded in `/wiki/_log.md`.
+   - All source material must reside in `/raw/` unmodified. Never write directly to `/wiki/` without ingesting.
 
-2. **Analyze & Clarify:**
-   - Read the raw source fully.
-   - If domain boundaries, target audience, or level of detail are ambiguous, ask a focused round of clarifying questions before generating pages.
+2. **Read & Clarify:**
+   - Read each source fully.
+   - If scope, domain boundaries, target audience, or level of detail is unclear, ask one round of clarifying questions before proceeding.
 
-3. **Decompose Atomically:**
-   - Deconstruct the source into atomic markdown pages — **exactly one page per distinct concept, entity, person, organization, system, architectural decision, or contract**.
-   - A single source document commonly yields **5 to 25 atomic wiki pages**. Never collapse an entire source document into a single monolithic page.
+3. **Atomic Decomposition:**
+   - Decompose each source into atomic wiki pages — **one per distinct concept, person, organization, event, or theme** (or architecture decision/contract).
+   - A single source document commonly produces **5–25 pages**. Never collapse an entire source into a single file.
+   - Place pages according to workspace wiki organization:
+     - **Flat:** directly under `/wiki/` (e.g., `/wiki/<topic>.md`)
+     - **Structured:** in categorical subfolders:
+       - Research → `concepts/`, `people/`, `organizations/`, `sources/`, `analysis/`
+       - Second brain → `projects/`, `people/`, `decisions/`, `logs/`
+       - Content archive → `sources/`, `people/`, `tools/`, `concepts/`
+       - Codebase → `architecture/`, `decisions/`, `runbooks/`, `people/`
 
-4. **Frontmatter Schema:**
-   Every generated wiki page must begin with the standard typed relation frontmatter:
+4. **Frontmatter Relations:**
+   - For each page, write the required YAML frontmatter with typed relations:
    ```yaml
    ---
-   title: "Descriptive Concept Title"
-   tags: [domain, architecture]
+   title: ""
+   tags: []
    last_updated: YYYY-MM-DD
-   # Typed frontmatter relations (paths relative to /wiki/)
-   sources: ["raw/filename.ext"]
-   related: ["concepts/related-page.md"]
-   extends: []
-   contradicts: []
-   mentioned_in: []   # Leave empty; computed and maintained by wiki-lint
+   # Typed relation fields — paths relative to /wiki/
+   sources: []          # /raw/ files this page was derived from
+   related: []          # thematically related wiki pages
+   extends: []          # pages this one builds upon or specialises
+   contradicts: []      # pages with conflicting information
+   mentioned_in: []     # pages that link to this one (leave empty; maintained by lint)
    ---
    ```
+   - **Crucial:** The relation graph lives in frontmatter, not in prose links. Agents traverse the graph by reading frontmatter fields, not by scanning body text.
 
-5. **Author Atomic Body:**
-   - Provide a concise summary and core facts/insights.
-   - Include standard Markdown links (`[Label](./target.md)`) where prose naturally benefits.
-   - Ground all factual assertions directly in the source material.
+5. **Author Concise Body:**
+   - Write a concise body with summary, key facts, and insights.
+   - Add inline standard Markdown links (`[Label](./path.md)`) where contextually useful in prose.
 
 6. **Update Navigation Index:**
-   - Insert links to all newly created pages into the categorized sections of `/wiki/index.md`.
+   - Update `/wiki/index.md` with links to all new pages in their corresponding categorized sections.
 
-7. **Update Hot Context Cache:**
-   - If `/wiki/hot.md` exists, update its rolling summary with the most critical new concepts (keeping total length around ~500 words).
+7. **Update Hot Cache:**
+   - Update `/wiki/hot.md` if it exists with the rolling ~500-word orientation summary of active context.
 
 8. **Append Operation Log:**
-   - Add a timestamped entry to `/wiki/_log.md` detailing:
+   - Append a timestamped entry to `/wiki/_log.md` detailing:
      - Date & time
      - Raw file processed
      - List of atomic pages generated
-     - Any flagged follow-ups
+     - Any flagged follow-ups or knowledge gaps

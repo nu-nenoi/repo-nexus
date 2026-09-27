@@ -1,44 +1,47 @@
 # Wiki Lint & Maintenance Workflow (`wiki-lint`)
 
-Periodic health check and maintenance workflow to preserve wiki graph integrity, validate typed relations, recompute bidirectional links, and resolve knowledge gaps.
+Periodic health check and maintenance workflow to preserve wiki graph integrity, validate typed relations, recompute bidirectional links, resolve knowledge gaps, and rebuild indexes.
 
 ---
 
 ## Lint & Maintenance Protocol
 
 1. **Verify Relation Paths:**
-   - Scan every wiki page under `/wiki/`.
-   - Verify that all relative paths specified in `sources`, `related`, `extends`, and `contradicts` resolve to real files on disk.
-   - Fix broken links or flag missing files in `/wiki/_log.md`.
+   - For every page, verify that all paths in frontmatter relation fields (`related`, `extends`, `contradicts`, `sources`) resolve to existing files.
+   - Fix or flag broken paths.
 
 2. **Recompute `mentioned_in`:**
-   - Scan all pages across the wiki for incoming references (both from frontmatter relation fields and inline prose markdown links).
-   - Update each page's `mentioned_in:` frontmatter list to accurately reflect all pages that link to it.
+   - Recompute `mentioned_in` for every page by scanning all other pages' relation fields and inline links.
+   - Update the field in frontmatter.
 
-3. **Identify & Link Orphan Pages:**
-   - Detect pages that are not linked in `/wiki/index.md` and have an empty `mentioned_in:` list.
-   - Add newly discovered orphan pages to their appropriate category in `/wiki/index.md`.
+3. **Find Orphaned Pages:**
+   - Detect pages not reachable from `index.md` or any `mentioned_in` field.
+   - Add them to the index in their appropriate category.
 
-4. **Detect & Consolidate Overlaps:**
-   - Identify redundant or duplicate pages that cover identical topics.
-   - Consolidate them into a single canonical atomic page and update incoming relations across the wiki.
+4. **Detect Duplicate or Overlapping Pages:**
+   - Detect duplicate or heavily overlapping pages.
+   - Consolidate and update relations across the wiki graph.
 
-5. **Audit Inconsistencies & Contradictions:**
-   - Review pages tagged with `contradicts:` relations.
-   - Ensure competing viewpoints, conflicting architectural decisions, or evolving data models are accurately framed.
+5. **Check Factual Inconsistencies:**
+   - Check for factual inconsistencies between pages in `contradicts` relations or covering the same topic.
+   - Clarify or resolve contradictions.
 
 6. **Identify Knowledge Gaps:**
-   - Find recurring terms, concepts, or entities referenced in prose or relations that do not yet have an atomic page.
-   - Create stub pages or flag them as candidates for future ingestion from `/raw/`.
+   - Identify knowledge gaps: concepts referenced in relation fields or prose but lacking their own atomic page.
+   - Create stub pages or flag for future ingest.
 
-7. **Rebuild Navigation Index:**
-   - Re-sort and reconcile `/wiki/index.md` so that all active pages are properly categorized with updated metadata.
+7. **Suggest Source Candidates:**
+   - Suggest source candidates from `/raw/` or external searches to fill identified knowledge gaps.
 
-8. **Refresh Hot Context Cache:**
-   - Prune `/wiki/hot.md` to remove stale context and ensure it remains a crisp ~500-word overview of active domain knowledge.
+8. **Rebuild Navigation Index:**
+   - Rebuild `/wiki/index.md` to reflect the current set of pages and categories accurately.
 
-9. **Log Audit Summary:**
-   - Append a timestamped maintenance summary to `/wiki/_log.md` detailing:
-     - Dead links fixed
-     - `mentioned_in` counts recomputed
-     - New stubs or orphans indexed
+9. **Update Hot Cache:**
+   - Update `/wiki/hot.md` if it exists, refreshing the rolling ~500-word orientation context.
+
+10. **Append Operation Log:**
+    - Append a lint summary to `/wiki/_log.md` detailing:
+      - Broken links fixed or flagged
+      - `mentioned_in` updates
+      - Orphans and duplicates resolved
+      - Gaps identified or stubbed

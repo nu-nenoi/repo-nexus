@@ -2,14 +2,12 @@
 # ============================================================================
 # scripts/wiki-lint-trigger.sh — Autonomous Karpathy Wiki Lint Trigger
 # ============================================================================
-set -e
+# Check if wiki/index.md exists and contains lint_trigger: enabled.
+# If not, exit silently with code 0.
+grep -q "lint_trigger: enabled" wiki/index.md 2>/dev/null || exit 0
 
 WIKI_DIR="wiki"
-INDEX_FILE="$WIKI_DIR/index.md"
 COUNTER_FILE="$WIKI_DIR/.lint_trigger_counter"
-
-# Check if wiki/index.md exists and contains lint_trigger: enabled
-grep -q "lint_trigger: enabled" "$INDEX_FILE" 2>/dev/null || exit 0
 
 # Read and increment session counter
 count=0
@@ -23,9 +21,9 @@ esac
 count=$((count + 1))
 printf '%s\n' "$count" > "$COUNTER_FILE" 2>/dev/null || true
 
-# Trigger on session 1 or every 15 sessions
+# If counter is 1 or a multiple of 15, print maintenance due notice
 if [ "$count" -eq 1 ] || [ $((count % 15)) -eq 0 ]; then
-  printf '\n[WIKI MAINTENANCE DUE]: Pending /raw/ files or wiki health checks detected. Run wiki-lint.\n\n'
+  printf '[WIKI MAINTENANCE DUE]: Pending /raw/ files or wiki health checks detected. Run wiki-lint.\n'
 fi
 
 exit 0

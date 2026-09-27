@@ -1102,6 +1102,15 @@ cmd_plugin_enable() {
     fi
   done
 
+  # Ensure machine-local state files (like wiki/.lint_trigger_counter) are gitignored
+  _gi="$NEXUS_DIR/.gitignore"
+  if [ -f "$NEXUS_DIR/scripts/wiki-lint-trigger.sh" ]; then
+    if [ ! -f "$_gi" ] || ! grep -qF "wiki/.lint_trigger_counter" "$_gi" 2>/dev/null; then
+      printf '\n# Karpathy LLM Wiki session counter\nwiki/.lint_trigger_counter\n.lint_trigger_counter\n' >> "$_gi"
+      log_dim "Added 'wiki/.lint_trigger_counter' to .gitignore"
+    fi
+  fi
+
   cmd_sync
   log_ok "Plugin '$_name' active across all member repositories"
 }

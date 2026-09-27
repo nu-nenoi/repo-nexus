@@ -8,3 +8,8 @@ repos/*
 # Node (npm packaging)
 node_modules/
 .npmrc
+
+# Karpathy LLM Wiki session counter
+wiki/.lint_trigger_counter
+.lint_trigger_counter
+

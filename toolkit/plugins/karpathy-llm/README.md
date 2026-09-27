@@ -2,7 +2,9 @@
 
 The **`karpathy-llm`** plugin packages Andrej Karpathy's agent behavioral principles, multi-repo context engineering standards, and the autonomous **Karpathy LLM Wiki** knowledge architecture for AI coding assistants (Cursor, Claude Code, GitHub Copilot, Antigravity, Windsurf).
 
-No external vector databases, embedding pipelines, or MCP servers required — just markdown files with structured YAML frontmatter navigated natively by AI agents.
+No external vector databases, embedding pipelines, or MCP servers required — just interlinked markdown files with structured YAML frontmatter traversed natively by AI agents.
+
+Reference specification: [setup-karpathy-wiki.md](https://github.com/nu-nenoi/ai-toolkit/blob/main/prompts/setup-karpathy-wiki.md) (also available locally in [`toolkit/prompts/setup-karpathy-wiki.md`](../../prompts/setup-karpathy-wiki.md)).
 
 ---
 
@@ -18,19 +20,57 @@ No external vector databases, embedding pipelines, or MCP servers required — j
 * Guidelines tailored for Repo Nexus workspaces respecting member repository autonomy and symlink write-through semantics.
 
 ### 3. Complete Karpathy LLM Wiki Architecture
-* **`/raw/` Intake Directory:** Append-only directory where unmodified source material (articles, transcripts, docs, meeting notes) is deposited.
+* **`/raw/` Intake Directory:** Append-only directory where unmodified source material (articles, transcripts, docs, meeting notes) is deposited. Includes `.gitkeep`.
 * **`/wiki/` Curated Knowledge Base:** Interlinked atomic markdown pages, each with typed frontmatter relations (`sources`, `related`, `extends`, `contradicts`, `mentioned_in`).
 * **`/wiki/index.md` Control & Navigation Index:** Master categorized catalog containing `lint_trigger: enabled|disabled` to control autonomous maintenance.
-* **`/wiki/hot.md` Rolling Context Cache:** High-density ~500-word orientation summary for rapid agent onboarding without full wiki scans.
-* **`/wiki/_log.md` Audit Trail:** Append-only log recording every ingest and lint operation.
+* **`/wiki/hot.md` Rolling Context Cache:** High-density ~500-word orientation summary for rapid agent onboarding without full wiki scans (especially for codebase knowledge and second-brain wikis).
+* **`/wiki/_log.md` Audit Trail:** Append-only log recording every ingest and lint operation with timestamped details.
+* **`/wiki/.lint_trigger_counter` Session Counter:** Machine-local state tracking session activity (ignored in `.gitignore`).
 
 ### 4. Autonomous Lint Trigger Script (`scripts/wiki-lint-trigger.sh`)
-* A lightweight POSIX script checking `lint_trigger: enabled` and a session counter (`wiki/.lint_trigger_counter`).
-* Alerts agents with `[WIKI MAINTENANCE DUE]` on session 1 and every 15 sessions.
+* Lightweight POSIX script checking `lint_trigger: enabled` and incrementing `wiki/.lint_trigger_counter`.
+* Alerts agents with `[WIKI MAINTENANCE DUE]: Pending /raw/ files or wiki health checks detected. Run wiki-lint.` on session 1 and every 15 sessions.
 
 ### 5. Standardized Agent Workflows (`workflows/`)
-* **`wiki-ingest.md`:** Step-by-step instructions to decompose raw source documents into 5–25 atomic wiki pages with frontmatter relations.
-* **`wiki-lint.md`:** Integrity audit protocol to validate paths, recompute `mentioned_in`, eliminate orphans, merge duplicates, and highlight knowledge gaps.
+* **`wiki-ingest.md` (8 Steps):** Decomposes raw source documents into 5–25 atomic wiki pages with frontmatter relations.
+* **`wiki-lint.md` (10 Steps):** Integrity audit protocol to validate paths, recompute `mentioned_in`, eliminate orphans, merge duplicates, audit inconsistencies, identify gaps, suggest source candidates, and rebuild indexes.
+
+---
+
+## Step 0 — Configuration Interview
+
+When an AI agent or developer sets up the Karpathy LLM Wiki in a repository or workspace, consult the Step 0 configuration questions:
+
+1. **[Q1] Which AI agent instruction file should the wiki rules be written to?**
+   - `AGENTS.md` (universal, works across most harnesses)
+   - `CLAUDE.md` (Claude Code / Anthropic)
+   - `.cursor/rules/wiki.mdc` (Cursor)
+   - `.github/copilot-instructions.md` (GitHub Copilot)
+   - `GEMINI.md` (Google Gemini / Antigravity)
+   - `.windsurfrules` (Windsurf)
+   - Other — specify path
+
+   *Append the `## Karpathy Wiki Rules` section to that file while preserving all existing content.*
+
+2. **[Q2] What is this wiki for?**
+   - Research / reading list — articles, papers, PDFs on a topic
+   - Personal second brain — meetings, notes, business context, personal projects
+   - Content archive — transcripts, podcast notes, newsletters
+   - Codebase knowledge — architecture decisions, runbooks, team conventions
+   - Other (describe briefly)
+
+3. **[Q3] How should the wiki be organized?**
+   - **Flat** — all pages at the top level of `/wiki/` (simpler, good default)
+   - **Structured** — subfolders by category, chosen based on Q2:
+     - Research → `concepts/`, `people/`, `organizations/`, `sources/`, `analysis/`
+     - Second brain → `projects/`, `people/`, `decisions/`, `logs/`
+     - Content archive → `sources/`, `people/`, `tools/`, `concepts/`
+     - Codebase → `architecture/`, `decisions/`, `runbooks/`, `people/`
+   - **Agent decides** — infer structure from the first batch of ingested content
+
+4. **[Q4] Enable wiki automation now?**
+   - **Yes** — set `lint_trigger: enabled` in `/wiki/index.md` frontmatter
+   - **No** — set `lint_trigger: disabled` (can be changed anytime)
 
 ---
 
@@ -45,16 +85,18 @@ my-workspace/
 ├── wiki/
 │   ├── index.md                     # Master catalog + lint_trigger toggle
 │   ├── hot.md                       # Rolling ~500-word quick-orient context
-│   └── _log.md                      # Ingestion & lint audit history
+│   ├── _log.md                      # Ingestion & lint audit history
+│   └── .lint_trigger_counter        # Session counter (gitignored)
 ├── scripts/
 │   └── wiki-lint-trigger.sh         # Executable session counter & lint alert
 ├── .agents/rules/
 │   └── KARPATHY_RULES.md            # Cardinal principles & wiki rules (auto-symlinked)
 ├── .agent/workflows/
-│   ├── wiki-ingest.md               # Decomposition & ingestion workflow
-│   └── wiki-lint.md                 # Graph validation & maintenance workflow
+│   ├── wiki-ingest.md               # 8-step decomposition & ingestion workflow
+│   └── wiki-lint.md                 # 10-step graph validation & maintenance workflow
 └── docs/
-    └── wiki-page.template.md        # Atomic page template with typed relations
+    ├── wiki-page.template.md        # Atomic page template with typed relations
+    └── LLM_WIKI.sample.md           # Sample wiki walkthrough
 ```
 
 ---
@@ -68,9 +110,11 @@ rnex plugin enable karpathy-llm
 ```
 
 This command:
-1. Adds `karpathy-llm` to `rnex.yaml`.
-2. Initializes `/raw/`, `/wiki/`, `scripts/wiki-lint-trigger.sh`, and workflows if they don't already exist.
-3. Symlinks `KARPATHY_RULES.md` and workflows into `.agents/rules/` and all registered member repositories via `rnex sync`.
+1. Adds `karpathy-llm` to `plugins:` in `rnex.yaml`.
+2. Copies initial templates (`wiki/index.md`, `wiki/_log.md`, `wiki/hot.md`, `raw/.gitkeep`, `docs/wiki-page.template.md`, `docs/LLM_WIKI.sample.md`, `scripts/wiki-lint-trigger.sh`).
+3. Links `KARPATHY_RULES.md` and workflows into workspace root (`.agents/rules/`, `.agent/workflows/`).
+4. Ensures `wiki/.lint_trigger_counter` is added to `.gitignore`.
+5. Syncs scope links and AI context files across all registered member repositories via `rnex sync`.
 
 ### Option 2: Declarative in `rnex.yaml`
 
@@ -91,8 +135,8 @@ rnex sync
 
 ## Everyday Operation & Cadence
 
-1. **Intake:** Drop research papers, meeting notes, or PRDs into `/raw/`.
-2. **Ingest:** Instruct your AI assistant: *"Run wiki-ingest on raw/filename.md"*.
+1. **Intake:** Drop raw research papers, meeting notes, PRDs, or architecture specs into `/raw/` unmodified.
+2. **Ingest:** Instruct your AI assistant: *"Run wiki-ingest on raw/source-document.md"*.
 3. **Session Cadence:** After sessions where repository files were edited, run `scripts/wiki-lint-trigger.sh`.
 4. **Maintenance:** If prompted by `[WIKI MAINTENANCE DUE]`, instruct the assistant: *"Run wiki-lint"*.
 5. **Toggle Automation:** Edit `lint_trigger: enabled` or `lint_trigger: disabled` in `/wiki/index.md` anytime.

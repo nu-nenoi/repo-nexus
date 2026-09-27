@@ -1,25 +1,28 @@
 ---
-title: Knowledge Index
+title: Wiki Index
 last_updated: YYYY-MM-DD
-lint_trigger: enabled   # Set to "disabled" to pause autonomous wiki linting
+lint_trigger: enabled   # set to "disabled" to pause all wiki automation
 ---
 
-# Knowledge Index
+# Wiki Index
 
-Welcome to the Karpathy LLM Wiki. Use this index to navigate atomic domain pages, architecture decisions, and cross-project knowledge.
+Master navigation index and control file for the Karpathy LLM Wiki. Use this index to navigate atomic domain pages, architecture decisions, and cross-project knowledge.
 
 ## Overview & Status
-* **Rolling Cache:** [`hot.md`](./hot.md) — Fast ~500-word orientation cache.
-* **Operation Log:** [`_log.md`](./_log.md) — Ingest & maintenance history.
+* **Rolling Cache:** [`hot.md`](./hot.md) — Fast ~500-word orientation cache (for second brain or codebase wikis).
+* **Operation Log:** [`_log.md`](./_log.md) — Timestamped ingest & maintenance history.
 
-## Concepts & Architecture
-* *(Atomic concept pages will be indexed here during ingestion)*
+## Architecture & Concepts
+* *(Atomic concept and system architecture pages will be indexed here during ingestion)*
 
-## Entities & People
-* *(Entities, organizations, and team members will be indexed here)*
+## Decisions & ADRs
+* *(Architecture decision records, interface contracts, and technical trade-offs)*
 
-## Decisions & Contracts
-* *(Architecture decision records (ADRs) and service interface contracts)*
+## Runbooks & Operations
+* *(Operational procedures, workflows, and team conventions)*
+
+## People & Organizations
+* *(Key contributors, teams, organizations, and stakeholders)*
 
 ## Sources & Raw References
 * *(Catalog of ingested source materials from `/raw/`)*

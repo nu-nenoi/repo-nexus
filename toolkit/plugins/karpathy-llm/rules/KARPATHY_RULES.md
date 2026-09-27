@@ -48,16 +48,16 @@ In a Repo Nexus workspace, independent repositories are unified into a single ac
 
 ---
 
-## 3. Karpathy Wiki Standing Rules
+## 3. Karpathy Wiki Rules
 
 When working in a repository with an active Karpathy LLM Wiki (`/wiki/` and `/raw/` directories):
 
-* **Intake:** All source material (articles, transcripts, docs, notes) goes to `/raw/` unmodified. Never write directly to `/wiki/` without ingesting.
-* **Orientation:** Before answering domain questions or starting architectural work, read `/wiki/index.md` to find relevant pages, then read only those pages. If `/wiki/hot.md` exists, read it first as a quick-orient step.
-* **Ingestion:** When new files appear in `/raw/`, execute the `wiki-ingest` workflow (`.agent/workflows/wiki-ingest.md`). One source document typically produces 5–25 atomic pages — never collapse an entire source into a single file.
-* **Cadence:** After any session where repository files were created, edited, or deleted, run `scripts/wiki-lint-trigger.sh`. If it outputs `[WIKI MAINTENANCE DUE]`, run the `wiki-lint` workflow (`.agent/workflows/wiki-lint.md`) before finishing your turn.
-* **No-Op Sessions:** Do not run the lint trigger after read-only or purely conversational sessions where no files changed.
-* **Enable/Disable:** Wiki automation is controlled by `lint_trigger: enabled|disabled` in `/wiki/index.md` frontmatter. Edit that field to toggle — the change is committed and visible to the whole team.
+- **Intake**: All source material (articles, transcripts, docs, notes) goes to `/raw/` unmodified. Never write directly to `/wiki/` without ingesting.
+- **Orientation**: Before answering domain questions, read `/wiki/index.md` to find relevant pages, then read only those pages. If `hot.md` exists, read it first as a quick-orient step.
+- **Ingestion**: When files appear in `/raw/`, run the `wiki-ingest` workflow (`.agent/workflows/wiki-ingest.md`). One source document typically produces many atomic pages (commonly 5–25 pages) — do not collapse a source into a single file.
+- **Cadence**: After any session where repository files were created, edited, or deleted, run `scripts/wiki-lint-trigger.sh`. If it outputs `[WIKI MAINTENANCE DUE]`, run the `wiki-lint` workflow (`.agent/workflows/wiki-lint.md`) before stopping.
+- **No-op sessions**: Do not run the trigger after read-only or purely conversational sessions where no files changed.
+- **Enable/disable**: Wiki automation is controlled by `lint_trigger: enabled|disabled` in `/wiki/index.md` frontmatter. Edit that field to toggle — the change is committed and visible to the whole team.
 
 ---
 
@@ -67,7 +67,7 @@ Every page in `/wiki/` must maintain typed frontmatter relations:
 
 ```yaml
 ---
-title: "Descriptive Page Title"
+title: ""
 tags: []
 last_updated: YYYY-MM-DD
 # Typed relation fields — paths relative to /wiki/
@@ -75,8 +75,10 @@ sources: []          # /raw/ files this page was derived from
 related: []          # thematically related wiki pages
 extends: []          # pages this one builds upon or specialises
 contradicts: []      # pages with conflicting information
-mentioned_in: []     # pages that link to this one (maintained by wiki-lint)
+mentioned_in: []     # pages that link to this one (maintained by lint)
 ---
 ```
+
+**Body:** concise summary, key facts or insights, and inline standard Markdown links (`[Label](./path.md)`) where contextually useful in prose.
 
 The relation graph lives in frontmatter, not in prose links. Agents traverse the graph by reading frontmatter fields, not by scanning body text.

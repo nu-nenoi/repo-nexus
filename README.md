@@ -200,7 +200,8 @@ rnex plugin disable karpathy-llm
 ```
 
 ### Built-in Plugin: `karpathy-llm`
-The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns, context engineering principles, and the autonomous **Karpathy LLM Wiki** architecture:
+The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns, context engineering principles, and the autonomous **Karpathy LLM Wiki** architecture (based on [`setup-karpathy-wiki.md`](https://github.com/nu-nenoi/ai-toolkit/blob/main/prompts/setup-karpathy-wiki.md), available locally in `toolkit/prompts/setup-karpathy-wiki.md`):
+* **Step 0 — Configuration Interview:** Guides setup decisions including target agent instruction file (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/wiki.mdc`, etc.), wiki purpose (codebase, second brain, research, content archive), organization layout (flat vs structured), and automation enablement.
 * **The 4 Cardinal Agent Rules** (`.agents/rules/KARPATHY_RULES.md`):
   1. *Think Before Coding:* Formulate explicit assumptions, boundary checks, and trade-offs before writing code.
   2. *Simplicity First:* Minimal abstractions, readable implementations, zero speculative boilerplate.
@@ -209,13 +210,14 @@ The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design p
 * **Autonomous Karpathy LLM Wiki Knowledge Architecture:**
   * **Intake (`/raw/`):** Append-only intake for unmodified source documents.
   * **Curated Knowledge Base (`/wiki/`):** Interlinked atomic markdown pages with typed YAML frontmatter relations (`sources`, `related`, `extends`, `contradicts`, `mentioned_in`).
-  * **Control Index (`/wiki/index.md`):** Categorized navigation index with `lint_trigger: enabled|disabled` toggle.
+  * **Control Index (`/wiki/index.md`):** Master navigation index with `lint_trigger: enabled|disabled` toggle.
   * **Rolling Context (`/wiki/hot.md`):** ~500-word quick-orient context cache for AI agents.
   * **Operation Log (`/wiki/_log.md`):** Append-only audit trail of ingest and lint operations.
+  * **Session Counter (`/wiki/.lint_trigger_counter`):** Machine-local state tracking session activity (gitignored).
 * **Autonomous Lint Trigger (`scripts/wiki-lint-trigger.sh`):** Session counter and maintenance alerts on session 1 and every 15 sessions.
 * **Standardized Workflows (`.agent/workflows/`):**
-  * `wiki-ingest.md`: Decomposes raw source documents into 5–25 atomic wiki pages.
-  * `wiki-lint.md`: Validates paths, recomputes `mentioned_in`, removes orphans, and detects knowledge gaps.
+  * `wiki-ingest.md`: 8-step protocol decomposing raw source documents into 5–25 atomic wiki pages.
+  * `wiki-lint.md`: 10-step protocol validating paths, recomputing `mentioned_in`, removing orphans, resolving contradictions, identifying gaps, suggesting source candidates, and rebuilding indexes.
 
 ---
 

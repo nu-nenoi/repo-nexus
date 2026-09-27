@@ -209,6 +209,9 @@ grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" || { fail "karpathy-llm not i
 [ -f "$TEST_WORKSPACE/.agents/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md missing in workspace root"; exit 1; }
 [ -L "$TEST_REPO/.agents/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md symlink missing in member repo"; exit 1; }
 [ -f "$TEST_WORKSPACE/docs/LLM_WIKI.sample.md" ] || { fail "LLM_WIKI.sample.md not initialized in docs/"; exit 1; }
+[ -f "$TEST_WORKSPACE/wiki/index.md" ] || { fail "wiki/index.md not initialized in workspace"; exit 1; }
+grep -q "title: Wiki Index" "$TEST_WORKSPACE/wiki/index.md" || { fail "wiki/index.md missing title: Wiki Index"; exit 1; }
+grep -q "wiki/.lint_trigger_counter" "$TEST_WORKSPACE/.gitignore" || { fail "wiki/.lint_trigger_counter not added to .gitignore"; exit 1; }
 _status_out="$("$TEST_WORKSPACE/rnex" status 2>&1)"
 echo "$_status_out" | grep -q "karpathy-llm" || { fail "Active plugin not listed in status"; exit 1; }
 pass
