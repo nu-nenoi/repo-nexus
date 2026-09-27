@@ -19,6 +19,26 @@ A **simple, lightweight companion tool** for multi-repo workflows. It links mult
 
 ---
 
+## Table of Contents
+
+- [What Repo Nexus Is (and What It Isn't)](#what-repo-nexus-is-and-what-it-isnt)
+- [How It Works: The Two Symlink Flows](#how-it-works-the-two-symlink-flows)
+- [Key Principles](#key-principles)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Everyday Usage](#everyday-usage)
+- [Plugins & AI Context Packs](#plugins--ai-context-packs)
+- [Workspace Configuration (`rnex.yaml`)](#workspace-configuration-rnexyaml)
+- [CLI Command Reference](#cli-command-reference)
+- [Operating on External Workspaces via `--config`](#operating-on-external-workspaces-via---config)
+- [Supported AI Configuration Files](#supported-ai-configuration-files)
+- [Project Structure](#project-structure)
+- [Running Tests](#running-tests)
+- [Frequently Asked Questions (FAQ)](docs/FAQ.md)
+- [License](#license)
+
+---
+
 ## What Repo Nexus Is (and What It Isn't)
 
 | What It Is | What It Isn't |
@@ -180,14 +200,22 @@ rnex plugin disable karpathy-llm
 ```
 
 ### Built-in Plugin: `karpathy-llm`
-The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns and context engineering principles:
+The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns, context engineering principles, and the autonomous **Karpathy LLM Wiki** architecture:
 * **The 4 Cardinal Agent Rules** (`.agents/rules/KARPATHY_RULES.md`):
   1. *Think Before Coding:* Formulate explicit assumptions, boundary checks, and trade-offs before writing code.
   2. *Simplicity First:* Minimal abstractions, readable implementations, zero speculative boilerplate.
   3. *Surgical Changes:* Minimal blast radius, preserved comments/docstrings, and tight diffs.
   4. *Goal-Driven Execution:* Upfront verification criteria, automated tests, and diff inspection.
-* **Multi-Repo Context Engineering:** Guidelines for AI agents respecting member repo autonomy and symlink write-through semantics.
-* **LLM Wiki Knowledge Pattern** (`docs/LLM_WIKI.sample.md`): Persistent, indexed multi-repo architecture documentation that compounds across agent sessions.
+* **Autonomous Karpathy LLM Wiki Knowledge Architecture:**
+  * **Intake (`/raw/`):** Append-only intake for unmodified source documents.
+  * **Curated Knowledge Base (`/wiki/`):** Interlinked atomic markdown pages with typed YAML frontmatter relations (`sources`, `related`, `extends`, `contradicts`, `mentioned_in`).
+  * **Control Index (`/wiki/index.md`):** Categorized navigation index with `lint_trigger: enabled|disabled` toggle.
+  * **Rolling Context (`/wiki/hot.md`):** ~500-word quick-orient context cache for AI agents.
+  * **Operation Log (`/wiki/_log.md`):** Append-only audit trail of ingest and lint operations.
+* **Autonomous Lint Trigger (`scripts/wiki-lint-trigger.sh`):** Session counter and maintenance alerts on session 1 and every 15 sessions.
+* **Standardized Workflows (`.agent/workflows/`):**
+  * `wiki-ingest.md`: Decomposes raw source documents into 5–25 atomic wiki pages.
+  * `wiki-lint.md`: Validates paths, recomputes `mentioned_in`, removes orphans, and detects knowledge gaps.
 
 ---
 
@@ -307,7 +335,7 @@ repo-nexus/
 │   ├── workflows/ci.yml            # GitHub Actions CI workflow
 │   └── ISSUE_TEMPLATE/             # Bug report and feature request templates
 ├── tests/
-│   └── test_cli.sh                 # Automated CLI test suite (11 tests)
+│   └── test_cli.sh                 # Automated CLI test suite (21 tests)
 ├── toolkit/                        # Shared prompts, scripts, templates
 ├── package.json                    # npm package manifest
 ├── LICENSE                         # MIT License

@@ -1,9 +1,17 @@
 name: karpathy-llm
-version: 0.1.0
-description: Andrej Karpathy's agent behavioral principles, context engineering guidelines, and LLM Wiki pattern
+version: 0.2.0
+description: Andrej Karpathy's agent behavioral principles, context engineering guidelines, and autonomous LLM Wiki knowledge architecture
 author: nu-nenoi
 homepage: https://github.com/nu-nenoi/repo-nexus
 ai_files:
   - rules/KARPATHY_RULES.md: .agents/rules/KARPATHY_RULES.md
+  - workflows/wiki-ingest.md: .agent/workflows/wiki-ingest.md
+  - workflows/wiki-lint.md: .agent/workflows/wiki-lint.md
 templates:
+  - templates/index.md: wiki/index.md
+  - templates/_log.md: wiki/_log.md
+  - templates/hot.md: wiki/hot.md
+  - templates/raw.gitkeep: raw/.gitkeep
+  - templates/wiki-page.sample.md: docs/wiki-page.template.md
   - templates/LLM_WIKI.sample.md: docs/LLM_WIKI.sample.md
+  - scripts/wiki-lint-trigger.sh: scripts/wiki-lint-trigger.sh
