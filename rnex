@@ -171,17 +171,60 @@ yaml_list_ai_files() {
   '
 }
 
-# Parse list of plugins from rnex.yaml
+# Parse list of plugins from rnex.yaml (supports both mapping and list formats)
 yaml_list_plugins() {
   [ -f "$WORKSPACE_YAML" ] || return 0
   awk '
-    /^plugins:/ { p=1; next }
+    /^plugins:[ ]*$/ || /^plugins:[ ]*#/ { p=1; next }
     p && /^[^ #]/ { exit }
     p && /^[ ]*-[ ]*/ {
-      sub(/^[ ]*-[ ]*/, "");
-      sub(/[ ]*#.*/, "");
-      if (length($0) > 0) print $0
+      line = $0
+      sub(/^[ ]*-[ ]*/, "", line)
+      sub(/[ ]*#.*/, "", line)
+      sub(/[ ]*:.*$/, "", line)
+      gsub(/[[:space:]]/, "", line)
+      if (length(line) > 0) print line
+      next
     }
+    p && /^  [a-zA-Z0-9_.-]+:[ ]*(#.*)?$/ {
+      line = $0
+      sub(/^[ ]*/, "", line)
+      sub(/:.*/, "", line)
+      gsub(/[[:space:]]/, "", line)
+      if (length(line) > 0) print line
+      next
+    }
+    p && /^  [a-zA-Z0-9_.-]+:[ ]+[^#[:space:]]/ {
+      line = $0
+      sub(/^[ ]*/, "", line)
+      sub(/:.*/, "", line)
+      gsub(/[[:space:]]/, "", line)
+      if (length(line) > 0) print line
+      next
+    }
+  ' "$WORKSPACE_YAML"
+}
+
+# Get a configuration field value for a plugin under plugins.<plugin>.<field>
+yaml_plugin_get() {
+  _plugin="$1"; _field="$2"
+  [ -f "$WORKSPACE_YAML" ] || return 0
+  awk -v plugin="$_plugin" -v field="$_field" '
+    /^plugins:[ ]*$/ || /^plugins:[ ]*#/ { in_plugins=1; next }
+    in_plugins && /^[^ #]/ { in_plugins=0 }
+    in_plugins && match($0, "^  " plugin ":[ ]*") { in_target=1; next }
+    in_target && /^    / {
+      line = $0
+      sub(/^[ ]*/, "", line)
+      if (match(line, "^" field ":[ ]*")) {
+        sub("^" field ":[ ]*", "", line)
+        sub(/[ ]*#.*$/, "", line)
+        gsub(/^["\x27]|["\x27]$/, "", line)
+        print line
+        exit
+      }
+    }
+    in_target && !/^    / && !/^[ ]*#/ { in_target=0 }
   ' "$WORKSPACE_YAML"
 }
 
@@ -196,27 +239,43 @@ yaml_enable_plugin() {
     printf '\nplugins:\n' >> "$WORKSPACE_YAML"
   fi
   _tmp="$(mktemp)"
-  awk -v name="$_name" '
-    /^plugins:/ {
-      print
-      printf "  - %s\n", name
-      added=1
-      next
-    }
-    { print }
-  ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
+  if [ "$_name" = "karpathy-llm" ]; then
+    awk -v name="$_name" '
+      /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
+        print
+        printf "  %s:\n    lint_trigger_enabled: true\n", name
+        added=1
+        next
+      }
+      { print }
+    ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
+  else
+    awk -v name="$_name" '
+      /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
+        print
+        printf "  %s: {}\n", name
+        added=1
+        next
+      }
+      { print }
+    ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
+  fi
 }
 
 yaml_disable_plugin() {
   _name="$1"
   _tmp="$(mktemp)"
   awk -v name="$_name" '
-    /^plugins:/ { in_plugins=1; print; next }
+    /^plugins:[ ]*$/ || /^plugins:[ ]*#/ { in_plugins=1; print; next }
     in_plugins && /^[^ #]/ { in_plugins=0 }
+    in_plugins && match($0, "^  " name ":[ ]*") { in_target=1; next }
+    in_target && (/^    / || /^[ ]*$/) { next }
+    in_target && !/^    / { in_target=0 }
     in_plugins && $0 ~ ("^[ ]*-[ ]*" name "[ ]*($|#)") { next }
     { print }
   ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
 }
+
 
 # Parse list of repos from rnex.yaml
 yaml_list_repos() {
@@ -461,6 +520,7 @@ find_plugin_dir() {
   _query="$1"
   _sdir="$(dirname "$SCRIPT_LOCATION")"
   for _cand in \
+    "$NEXUS_DIR/.rnex/plugins/$_query" \
     "$NEXUS_DIR/.nexus/plugins/$_query" \
     "$NEXUS_DIR/plugins/$_query" \
     "$NEXUS_DIR/toolkit/plugins/$_query" \
@@ -479,6 +539,7 @@ list_all_available_plugin_dirs() {
   for _parent in \
     "$_sdir/toolkit/plugins" \
     "$NEXUS_DIR/toolkit/plugins" \
+    "$NEXUS_DIR/.rnex/plugins" \
     "$NEXUS_DIR/.nexus/plugins" \
     "$NEXUS_DIR/plugins"; do
     if [ -d "$_parent" ]; then
@@ -599,6 +660,16 @@ sync_plugins() {
         log_ok "Initialized template: $_d"
       fi
     done
+
+    # Reconcile plugin configuration (e.g., lint_trigger_enabled for karpathy-llm)
+    if [ "$_pname" = "karpathy-llm" ] && [ -f "$NEXUS_DIR/wiki/index.md" ]; then
+      _lte="$(yaml_plugin_get "karpathy-llm" "lint_trigger_enabled")"
+      if [ "$_lte" = "false" ]; then
+        sed -i.bak 's/lint_trigger:[ ]*enabled/lint_trigger: disabled/' "$NEXUS_DIR/wiki/index.md" 2>/dev/null && rm -f "$NEXUS_DIR/wiki/index.md.bak"
+      elif [ "$_lte" = "true" ]; then
+        sed -i.bak 's/lint_trigger:[ ]*disabled/lint_trigger: enabled/' "$NEXUS_DIR/wiki/index.md" 2>/dev/null && rm -f "$NEXUS_DIR/wiki/index.md.bak"
+      fi
+    fi
   done
 }
 
@@ -1018,6 +1089,12 @@ cmd_plugin_info() {
   [ -n "$_author" ] && printf '%bAuthor:%b       %s\n' "$_BOLD" "$_NC" "$_author"
   [ -n "$_home" ] && printf '%bHomepage:%b     %s\n' "$_BOLD" "$_NC" "$_home"
   printf '%bLocation:%b     %s\n' "$_BOLD" "$_NC" "$_pdir"
+  if yaml_has_plugin "$_name"; then
+    _lte="$(yaml_plugin_get "$_name" "lint_trigger_enabled")"
+    if [ -n "$_lte" ]; then
+      printf '%bConfiguration:%b  lint_trigger_enabled: %s\n' "$_BOLD" "$_NC" "$_lte"
+    fi
+  fi
 
   printf '\n%bProvided AI Context Files:%b\n' "$_BOLD" "$_NC"
   plugin_list_ai_files "$_pdir" | while read -r _item; do
@@ -1102,12 +1179,12 @@ cmd_plugin_enable() {
     fi
   done
 
-  # Ensure machine-local state files (like wiki/.lint_trigger_counter) are gitignored
+  # Ensure machine-local state files (like .rnex/.lint_trigger_counter) are gitignored
   _gi="$NEXUS_DIR/.gitignore"
-  if [ -f "$NEXUS_DIR/scripts/wiki-lint-trigger.sh" ]; then
-    if [ ! -f "$_gi" ] || ! grep -qF "wiki/.lint_trigger_counter" "$_gi" 2>/dev/null; then
-      printf '\n# Karpathy LLM Wiki session counter\nwiki/.lint_trigger_counter\n.lint_trigger_counter\n' >> "$_gi"
-      log_dim "Added 'wiki/.lint_trigger_counter' to .gitignore"
+  if [ -f "$NEXUS_DIR/.rnex/scripts/wiki-lint-trigger.sh" ] || [ -f "$NEXUS_DIR/scripts/wiki-lint-trigger.sh" ]; then
+    if [ ! -f "$_gi" ] || ! grep -qF ".rnex/.lint_trigger_counter" "$_gi" 2>/dev/null; then
+      printf '\n# Repo Nexus internal state\n.rnex/.lint_trigger_counter\nwiki/.lint_trigger_counter\n.lint_trigger_counter\n' >> "$_gi"
+      log_dim "Added '.rnex/.lint_trigger_counter' to .gitignore"
     fi
   fi
 

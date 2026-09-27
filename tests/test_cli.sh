@@ -206,21 +206,28 @@ pass
 run_test "Plugin enable command"
 "$TEST_WORKSPACE/rnex" plugin enable karpathy-llm >/dev/null
 grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" || { fail "karpathy-llm not in rnex.yaml"; exit 1; }
-[ -f "$TEST_WORKSPACE/.agents/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md missing in workspace root"; exit 1; }
-[ -L "$TEST_REPO/.agents/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md symlink missing in member repo"; exit 1; }
-[ -f "$TEST_WORKSPACE/docs/LLM_WIKI.sample.md" ] || { fail "LLM_WIKI.sample.md not initialized in docs/"; exit 1; }
+grep -q "lint_trigger_enabled:[ ]*true" "$TEST_WORKSPACE/rnex.yaml" || { fail "lint_trigger_enabled not in rnex.yaml"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md missing in workspace root"; exit 1; }
+[ -L "$TEST_REPO/.rnex/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md symlink missing in member repo"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/templates/LLM_WIKI.sample.md" ] || { fail "LLM_WIKI.sample.md not initialized in .rnex/templates/"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/scripts/wiki-lint-trigger.sh" ] || { fail "wiki-lint-trigger.sh not initialized in .rnex/scripts/"; exit 1; }
 [ -f "$TEST_WORKSPACE/wiki/index.md" ] || { fail "wiki/index.md not initialized in workspace"; exit 1; }
 grep -q "title: Wiki Index" "$TEST_WORKSPACE/wiki/index.md" || { fail "wiki/index.md missing title: Wiki Index"; exit 1; }
-grep -q "wiki/.lint_trigger_counter" "$TEST_WORKSPACE/.gitignore" || { fail "wiki/.lint_trigger_counter not added to .gitignore"; exit 1; }
+grep -q ".rnex/.lint_trigger_counter" "$TEST_WORKSPACE/.gitignore" || { fail ".rnex/.lint_trigger_counter not added to .gitignore"; exit 1; }
 _status_out="$("$TEST_WORKSPACE/rnex" status 2>&1)"
 echo "$_status_out" | grep -q "karpathy-llm" || { fail "Active plugin not listed in status"; exit 1; }
+
+# Verify updating lint_trigger_enabled: false reconciles wiki/index.md upon sync
+sed -i.bak 's/lint_trigger_enabled: true/lint_trigger_enabled: false/' "$TEST_WORKSPACE/rnex.yaml"
+"$TEST_WORKSPACE/rnex" sync >/dev/null
+grep -q "lint_trigger: disabled" "$TEST_WORKSPACE/wiki/index.md" || { fail "sync did not reconcile lint_trigger: disabled"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
 run_test "Plugin disable command"
 "$TEST_WORKSPACE/rnex" plugin disable karpathy-llm >/dev/null
 grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" && { fail "karpathy-llm still in rnex.yaml"; exit 1; }
-[ ! -e "$TEST_REPO/.agents/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md not unlinked from repo"; exit 1; }
+[ ! -e "$TEST_REPO/.rnex/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md not unlinked from repo"; exit 1; }
 _plist_after="$("$TEST_WORKSPACE/rnex" plugin list 2>&1)"
 echo "$_plist_after" | grep -q "available" || { fail "karpathy-llm not returned to available status"; exit 1; }
 pass

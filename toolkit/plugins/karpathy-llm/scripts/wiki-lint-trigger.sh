@@ -1,13 +1,28 @@
 #!/bin/sh
 # ============================================================================
-# scripts/wiki-lint-trigger.sh — Autonomous Karpathy Wiki Lint Trigger
+# .rnex/scripts/wiki-lint-trigger.sh — Autonomous Karpathy Wiki Lint Trigger
 # ============================================================================
-# Check if wiki/index.md exists and contains lint_trigger: enabled.
-# If not, exit silently with code 0.
+
+# 1. Check rnex.yaml configuration if present
+if [ -f "rnex.yaml" ]; then
+  _disabled=$(awk '
+    /^plugins:/ { in_p=1; next }
+    in_p && /^[^ #]/ { exit }
+    in_p && /^  karpathy-llm:[ ]*$/ { in_k=1; next }
+    in_k && /^    lint_trigger_enabled:[ ]*false/ { print "yes"; exit }
+    in_k && !/^    / && !/^[ ]*#/ { in_k=0 }
+  ' rnex.yaml)
+  if [ "$_disabled" = "yes" ]; then
+    exit 0
+  fi
+fi
+
+# 2. Check if wiki/index.md exists and contains lint_trigger: enabled
 grep -q "lint_trigger: enabled" wiki/index.md 2>/dev/null || exit 0
 
-WIKI_DIR="wiki"
-COUNTER_FILE="$WIKI_DIR/.lint_trigger_counter"
+COUNTER_DIR=".rnex"
+[ -d "$COUNTER_DIR" ] || COUNTER_DIR="wiki"
+COUNTER_FILE="$COUNTER_DIR/.lint_trigger_counter"
 
 # Read and increment session counter
 count=0

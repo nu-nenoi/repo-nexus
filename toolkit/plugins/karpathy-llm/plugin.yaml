@@ -4,14 +4,14 @@ description: Andrej Karpathy's agent behavioral principles, context engineering 
 author: nu-nenoi
 homepage: https://github.com/nu-nenoi/repo-nexus
 ai_files:
-  - rules/KARPATHY_RULES.md: .agents/rules/KARPATHY_RULES.md
-  - workflows/wiki-ingest.md: .agent/workflows/wiki-ingest.md
-  - workflows/wiki-lint.md: .agent/workflows/wiki-lint.md
+  - rules/KARPATHY_RULES.md: .rnex/rules/KARPATHY_RULES.md
+  - workflows/wiki-ingest.md: .rnex/workflows/wiki-ingest.md
+  - workflows/wiki-lint.md: .rnex/workflows/wiki-lint.md
 templates:
   - templates/index.md: wiki/index.md
   - templates/_log.md: wiki/_log.md
   - templates/hot.md: wiki/hot.md
   - templates/raw.gitkeep: raw/.gitkeep
-  - templates/wiki-page.sample.md: docs/wiki-page.template.md
-  - templates/LLM_WIKI.sample.md: docs/LLM_WIKI.sample.md
-  - scripts/wiki-lint-trigger.sh: scripts/wiki-lint-trigger.sh
+  - templates/wiki-page.sample.md: .rnex/templates/wiki-page.template.md
+  - templates/LLM_WIKI.sample.md: .rnex/templates/LLM_WIKI.sample.md
+  - scripts/wiki-lint-trigger.sh: .rnex/scripts/wiki-lint-trigger.sh

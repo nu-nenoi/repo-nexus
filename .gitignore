@@ -9,7 +9,8 @@ repos/*
 node_modules/
 .npmrc
 
-# Karpathy LLM Wiki session counter
+# Repo Nexus internal state
+.rnex/.lint_trigger_counter
 wiki/.lint_trigger_counter
 .lint_trigger_counter
 

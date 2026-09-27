@@ -85,18 +85,20 @@ my-workspace/
 ├── wiki/
 │   ├── index.md                     # Master catalog + lint_trigger toggle
 │   ├── hot.md                       # Rolling ~500-word quick-orient context
-│   ├── _log.md                      # Ingestion & lint audit history
+│   └── _log.md                      # Ingestion & lint audit history
+├── .rnex/
+│   ├── rules/
+│   │   └── KARPATHY_RULES.md        # Cardinal principles & wiki rules (auto-symlinked)
+│   ├── workflows/
+│   │   ├── wiki-ingest.md           # 8-step decomposition & ingestion workflow
+│   │   └── wiki-lint.md             # 10-step graph validation & maintenance workflow
+│   ├── scripts/
+│   │   └── wiki-lint-trigger.sh     # Executable session counter & lint alert
+│   ├── templates/
+│   │   ├── wiki-page.template.md    # Atomic page template with typed relations
+│   │   └── LLM_WIKI.sample.md       # Sample wiki walkthrough
 │   └── .lint_trigger_counter        # Session counter (gitignored)
-├── scripts/
-│   └── wiki-lint-trigger.sh         # Executable session counter & lint alert
-├── .agents/rules/
-│   └── KARPATHY_RULES.md            # Cardinal principles & wiki rules (auto-symlinked)
-├── .agent/workflows/
-│   ├── wiki-ingest.md               # 8-step decomposition & ingestion workflow
-│   └── wiki-lint.md                 # 10-step graph validation & maintenance workflow
-└── docs/
-    ├── wiki-page.template.md        # Atomic page template with typed relations
-    └── LLM_WIKI.sample.md           # Sample wiki walkthrough
+└── rnex.yaml                        # Plugin configuration
 ```
 
 ---
@@ -110,19 +112,20 @@ rnex plugin enable karpathy-llm
 ```
 
 This command:
-1. Adds `karpathy-llm` to `plugins:` in `rnex.yaml`.
-2. Copies initial templates (`wiki/index.md`, `wiki/_log.md`, `wiki/hot.md`, `raw/.gitkeep`, `docs/wiki-page.template.md`, `docs/LLM_WIKI.sample.md`, `scripts/wiki-lint-trigger.sh`).
-3. Links `KARPATHY_RULES.md` and workflows into workspace root (`.agents/rules/`, `.agent/workflows/`).
-4. Ensures `wiki/.lint_trigger_counter` is added to `.gitignore`.
+1. Adds `karpathy-llm` to `plugins:` in `rnex.yaml` with default configuration (`lint_trigger_enabled: true`).
+2. Copies initial templates (`wiki/index.md`, `wiki/_log.md`, `wiki/hot.md`, `raw/.gitkeep`, `.rnex/templates/wiki-page.template.md`, `.rnex/templates/LLM_WIKI.sample.md`, `.rnex/scripts/wiki-lint-trigger.sh`).
+3. Links `KARPATHY_RULES.md` and workflows into `.rnex/rules/` and `.rnex/workflows/`.
+4. Ensures `.rnex/.lint_trigger_counter` is added to `.gitignore`.
 5. Syncs scope links and AI context files across all registered member repositories via `rnex sync`.
 
 ### Option 2: Declarative in `rnex.yaml`
 
-Add `karpathy-llm` to `plugins:` in `rnex.yaml`:
+Configure `karpathy-llm` under `plugins:` in `rnex.yaml`:
 
 ```yaml
 plugins:
-  - karpathy-llm
+  karpathy-llm:
+    lint_trigger_enabled: true
 ```
 
 Then synchronize:
@@ -137,7 +140,7 @@ rnex sync
 
 1. **Intake:** Drop raw research papers, meeting notes, PRDs, or architecture specs into `/raw/` unmodified.
 2. **Ingest:** Instruct your AI assistant: *"Run wiki-ingest on raw/source-document.md"*.
-3. **Session Cadence:** After sessions where repository files were edited, run `scripts/wiki-lint-trigger.sh`.
+3. **Session Cadence:** After sessions where repository files were edited, run `.rnex/scripts/wiki-lint-trigger.sh`.
 4. **Maintenance:** If prompted by `[WIKI MAINTENANCE DUE]`, instruct the assistant: *"Run wiki-lint"*.
 5. **Toggle Automation:** Edit `lint_trigger: enabled` or `lint_trigger: disabled` in `/wiki/index.md` anytime.
 

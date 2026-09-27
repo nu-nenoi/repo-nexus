@@ -71,10 +71,11 @@ ai_files:
 #   karpathy-llm   — Andrej Karpathy's agent behavioral principles,
 #                    multi-repo context engineering, and LLM Wiki pattern
 #
-# Local / custom plugins can also be placed in .nexus/plugins/<name>/
+# Local / custom plugins can also be placed in .rnex/plugins/<name>/
 
 plugins:
-  # - karpathy-llm
+  # karpathy-llm:
+  #   lint_trigger_enabled: true
 
 # ------------------------------------------------------------------------------
 # repos — Member repositories managed by Repo Nexus
