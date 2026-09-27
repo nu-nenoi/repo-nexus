@@ -28,7 +28,7 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 0
 fi
 
-# Increment patch version without creating a git tag
+# Increment patch version without creating a git tag in pre-commit
 NEW_VERSION=$(npm version patch --no-git-tag-version)
 NEW_VERSION="${NEW_VERSION#v}"
 
@@ -38,4 +38,8 @@ if [ -f "$REPO_ROOT/package-lock.json" ]; then
   git add "$REPO_ROOT/package-lock.json"
 fi
 
-printf '[repo-nexus] Auto-bumped patch version to %s\n' "$NEW_VERSION"
+# Queue version git tag to be created on the commit by post-commit hook
+GIT_DIR="$(git rev-parse --git-dir 2>/dev/null || echo "$REPO_ROOT/.git")"
+printf 'v%s\n' "$NEW_VERSION" > "$GIT_DIR/PENDING_VERSION_TAG"
+
+printf '[repo-nexus] Auto-bumped patch version to %s (tag v%s queued)\n' "$NEW_VERSION" "$NEW_VERSION"
