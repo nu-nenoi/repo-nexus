@@ -50,32 +50,23 @@ A **simple, lightweight companion tool** for multi-repo workflows. It links mult
 
 ---
 
-## How It Works: The Two Symlink Flows
+## How It Works: Zero-Touch Multi-Repo Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. SCOPE IN — Bring member repos INTO Repo Nexus           │
+│  Repo Nexus Workspace Root                                 │
 │                                                             │
 │  my-workspace/                                              │
 │    repos/                                                   │
 │      backend/   ──(symlink)──>  ~/code/backend-api          │
 │      frontend/  ──(symlink)──>  ~/code/web-app              │
-│    AGENTS.md         (universal AI instructions)            │
-│    rnex.yaml         (manifest: AI files + repos)           │
+│    AGENTS.md         (root universal AI instructions)       │
+│    .rnex/            (plugins, rules, and workflows)        │
+│    rnex.yaml         (manifest: repos_dir, plugins, repos)  │
 │                                                             │
-│  Agent opens workspace → sees all repos in one place.       │
-│  Edits through symlinks modify the original files directly. │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│  2. INJECT OUT — Auto-sync AI context INTO member repos     │
-│                                                             │
-│  ~/code/backend-api/                                        │
-│    AGENTS.md     ──(symlink)──>  my-workspace/AGENTS.md     │
-│    src/              (real codebase)                        │
-│                                                             │
-│  Open backend-api standalone → AI tools automatically see   │
-│  shared instructions as if they were local files.           │
+│  • Agent opens workspace → sees all repos in one tree.      │
+│  • Edits through symlinks modify original files directly.   │
+│  • Member repositories remain 100% clean and untouched.     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -89,10 +80,13 @@ A **simple, lightweight companion tool** for multi-repo workflows. It links mult
 2. **Symlink Write-Through**:
    Symlinks are transparent pointers resolved by your OS. When you or an AI agent edit `repos/backend/src/index.ts`, the OS resolves the link and writes directly to the source repository on disk.
 
-3. **Single Source of Truth for AI Context**:
-   Edit `AGENTS.md` once in Repo Nexus, and changes immediately reflect across all member repositories.
+3. **Clean Member Repositories & Dedicated `.rnex/` Scope**:
+   Member repository roots remain clean and unpolluted. By default, `rnex` creates a dedicated `.rnex/` directory in each member repo (`repos/<name>/.rnex/`) to isolate all Repo Nexus documents, instructions, rules, workflows, and scripts. This setting is configurable per repository (`rnex_dir: true|false`) and can be disabled to leave a member repo 100% untouched.
 
-4. **Dynamic Workspace Scope**:
+4. **Multi-Repo AI Context Discovery**:
+   Root `AGENTS.md` and `.rnex/` govern workspace-wide AI assistant behavior, while AI tools operating at the workspace level inspect `repos/<name>/.rnex/` for member-specific instructions without cluttering root codebases.
+
+5. **Dynamic Workspace Scope**:
    Easily show or hide member repos from the active workspace without modifying disk contents.
 
 ---
@@ -157,14 +151,21 @@ During `rnex init`, the CLI automatically scans for existing AI configuration fi
 ## Everyday Usage
 
 ```bash
-# Register a repository (links into scope & auto-injects AI context)
+# Register a repository (links into scope & initializes member .rnex/ directory)
 rnex add my-app ~/code/my-app
 
-# Inspect workspace status & linked AI files
+# Register a repository with .rnex/ disabled (100% untouched)
+rnex add --no-rnex-dir my-app ~/code/my-app
+
+# Inspect workspace health, active repos, and .rnex status
 rnex status
 
-# List all registered repositories
+# List all registered repositories with scope and .rnex status
 rnex list
+
+# Toggle .rnex directory integration for a member repo
+rnex rnex-dir disable my-app
+rnex rnex-dir enable my-app
 
 # Temporarily hide a repo from active indexing/agent scope
 rnex hide my-app
@@ -172,10 +173,10 @@ rnex hide my-app
 # Restore a hidden repo back to active scope
 rnex show my-app
 
-# Reconcile/repair all symlinks across all repos (idempotent)
+# Reconcile all scope links, plugins, and member .rnex/ directories
 rnex sync
 
-# Unregister a repository (removes scope link & cleans up injected AI files)
+# Unregister a repository (removes scope link & member .rnex assets)
 rnex remove my-app
 ```
 
@@ -223,18 +224,11 @@ The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design p
 
 ## Workspace Configuration (`rnex.yaml`)
 
-The configuration file defines repo symlink directory, AI context files to sync, enabled plugins, and registered repositories:
+The configuration file defines repo symlink directory, enabled plugins, and registered repositories:
 
 ```yaml
 # Directory for repository symlinks (relative or absolute)
 repos_dir: ./repos
-
-# AI context files to automatically sync into every member repo
-ai_files:
-  - AGENTS.md
-  - .github/copilot-instructions.md
-  # - .cursorrules
-  # - CLAUDE.md
 
 # Workspace plugins
 plugins:
@@ -246,15 +240,18 @@ repos:
   backend:
     path: /Users/dev/code/backend-api
     scope: visible
+    rnex_dir: true      # default: true (creates repos/backend/.rnex/)
   frontend:
     path: ../web-app
     scope: visible
+    rnex_dir: true
   analytics:
     path: /Users/dev/code/analytics
     scope: hidden
+    rnex_dir: false     # disabled: leaves analytics repo 100% untouched
 ```
 
-> See [`docs/rnex.example.yaml`](docs/rnex.example.yaml) for a comprehensive example with all options and supported AI tool configs.
+> See [`docs/rnex.example.yaml`](docs/rnex.example.yaml) for a comprehensive example with all options.
 > For common questions and architecture details, see the [Frequently Asked Questions (FAQ)](docs/FAQ.md).
 
 ---
@@ -273,15 +270,14 @@ repos:
 |:---|:---|
 | `rnex init [dir]` | Initialize a new workspace in current (or target) directory |
 | `rnex install [dir]` | Install `rnex` & `repo-nexus` globally into `~/.local/bin` (or custom dir) |
-| `rnex add [-y] <name> <path>` | Register repo, create scope symlink, and sync AI context (prompts to extend existing files) |
-| `rnex remove <name>` | Unregister repo, unlink from scope, and clean up injected AI files |
-| `rnex list` | List all registered repos and visibility scopes |
-| `rnex status` | Display status of AI context files, active member repos, and paths |
+| `rnex add [--no-rnex-dir] <name> <path>` | Register repo, create scope link, and configure member `.rnex/` |
+| `rnex remove <name>` | Unregister repo, unlink scope, and clean up member `.rnex/` assets |
+| `rnex list` | List all registered repos, visibility scopes, and `.rnex` status |
+| `rnex status` | Display status of workspace AI context, active plugins, and member repos |
+| `rnex rnex-dir <enable\|disable> <name>` | Toggle `.rnex/` directory integration for a member repository |
 | `rnex show <name>` | Make a hidden repo visible in workspace |
 | `rnex hide <name>` | Hide a repo from active workspace indexing |
-| `rnex sync` | Reconcile all scope symlinks and AI context files from config |
-
-> **Note on Existing AI Files**: Pre-existing files in member repositories are never overwritten. When adding a new repo, `rnex` prompts whether to update existing files and safely extends them with workspace context between managed markers. Pass `-y` / `--yes` to auto-confirm.
+| `rnex sync` | Reconcile all scope symlinks, plugins, and member `.rnex/` directories |
 
 ---
 
@@ -301,28 +297,6 @@ Any command executed with an explicit config file operates within the directory 
 
 ---
 
-## Supported AI Configuration Files
-
-`rnex init` auto-detects these files and includes them in your workspace config:
-
-| File / Directory | AI Tool |
-|:---|:---|
-| `AGENTS.md` | Universal AI agent instructions |
-| `CLAUDE.md` | Claude Code |
-| `.cursorrules` | Cursor |
-| `.cursor/rules/` | Cursor (directory) |
-| `.windsurfrules` | Windsurf / Codeium |
-| `.windsurf/rules/` | Windsurf (directory) |
-| `.github/copilot-instructions.md` | GitHub Copilot |
-| `.aider.conf.yml` | Aider |
-| `CONVENTIONS.md` | Coding conventions |
-| `.clinerules` | Cline / Roo Code |
-| `CODEX.md` | Codex |
-| `.continue/` | Continue.dev |
-| `SKILL.md` | Skills (emerging standard) |
-
----
-
 ## Project Structure
 
 ```
@@ -338,7 +312,7 @@ repo-nexus/
 │   ├── workflows/ci.yml            # GitHub Actions CI workflow
 │   └── ISSUE_TEMPLATE/             # Bug report and feature request templates
 ├── tests/
-│   └── test_cli.sh                 # Automated CLI test suite (21 tests)
+│   └── test_cli.sh                 # Automated CLI test suite (20 tests)
 ├── toolkit/                        # Shared prompts, scripts, templates
 ├── package.json                    # npm package manifest
 ├── LICENSE                         # MIT License

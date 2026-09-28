@@ -3,7 +3,7 @@ version: 0.3.0
 description: Andrej Karpathy's agent behavioral principles, context engineering guidelines, and autonomous LLM Wiki knowledge architecture
 author: nu-nenoi
 homepage: https://github.com/nu-nenoi/repo-nexus
-ai_files:
+rules:
   - rules/KARPATHY_RULES.md: .rnex/rules/KARPATHY_RULES.md
   - workflows/wiki-ingest.md: .rnex/workflows/wiki-ingest.md
   - workflows/wiki-lint.md: .rnex/workflows/wiki-lint.md

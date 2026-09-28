@@ -38,8 +38,9 @@ In a Repo Nexus workspace, independent repositories are unified into a single ac
    - Edits made to `repos/<name>/` write directly through to the underlying member repository on disk.
    - Do not attempt to move or replace symlinks with regular directories.
 
-2. **Repository Autonomy:**
+2. **Repository Autonomy & Member .rnex Directory:**
    - Member repositories are independent projects. Do not introduce cross-repository source imports or shared runtime dependencies unless an explicit monorepo architecture is configured.
+   - Member repositories may contain an `.rnex/` directory (e.g. `repos/<name>/.rnex/`) containing repository-specific documents, instructions, rules, workflows, and scripts. Coding assistants must inspect this directory for member-specific instructions.
    - Run git operations (commits, branches, pushes) within the respective member repository root.
 
 3. **Context Economy:**

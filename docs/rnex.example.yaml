@@ -20,52 +20,15 @@
 repos_dir: ./repos
 
 # ------------------------------------------------------------------------------
-# ai_files — AI context files to auto-sync into member repositories
-# ------------------------------------------------------------------------------
-# Each file listed here is synced from the workspace root into every
-# registered member repository. If a member repository already contains an
-# existing file, it is extended (never replaced) with workspace context.
-# When adding a new repository, rnex prompts whether to update existing files.
-# This keeps AI instructions consistent across all your projects.
-#
-# Paths are relative to the workspace root (where this config file lives).
-# Both files and directories are supported.
-#
-# Well-known AI configuration files by tool:
-#   AGENTS.md                         — Universal AI agent instructions
-#   CLAUDE.md                         — Claude Code project instructions
-#   .cursorrules                      — Cursor editor rules
-#   .cursor/rules/                    — Cursor rules directory
-#   .windsurfrules                    — Windsurf / Codeium rules
-#   .windsurf/rules/                  — Windsurf rules directory
-#   .github/copilot-instructions.md   — GitHub Copilot custom instructions
-#   .aider.conf.yml                   — Aider configuration
-#   CONVENTIONS.md                    — Coding conventions (Aider / general)
-#   .clinerules                       — Cline / Roo Code rules
-#   CODEX.md                          — Codex project instructions
-#   .continue/                        — Continue.dev configuration directory
-#   SKILL.md                          — Skills definition (emerging standard)
-
-ai_files:
-  - AGENTS.md
-  - .github/copilot-instructions.md
-  # - .cursorrules
-  # - CLAUDE.md
-  # - .windsurfrules
-  # - CONVENTIONS.md
-  # - toolkit/prompts/review-checklist.md
-
-# ------------------------------------------------------------------------------
 # plugins — Workspace plugins and AI instruction packs
 # ------------------------------------------------------------------------------
 # Plugins extend your workspace with curated AI guidelines, context rules,
-# and scaffolding templates. When enabled, plugin context files are automatically
-# synchronized into all registered member repositories during `rnex sync`.
+# and scaffolding templates within the `.rnex/` workspace root directory.
 #
 # Manage plugins with:
 #   rnex plugin list              # View available and active plugins
-#   rnex plugin enable <name>     # Enable and sync into member repos
-#   rnex plugin disable <name>    # Disable and clean up
+#   rnex plugin enable <name>     # Enable plugin in workspace
+#   rnex plugin disable <name>    # Disable plugin from workspace
 #
 # Built-in plugins:
 #   karpathy-llm   — Andrej Karpathy's agent behavioral principles,
@@ -81,34 +44,43 @@ plugins:
 # repos — Member repositories managed by Repo Nexus
 # ------------------------------------------------------------------------------
 # Each repo has:
-#   path:   Absolute or relative path to the repository on disk.
-#           Relative paths are resolved relative to this config file.
-#   scope:  "visible" (default) creates a symlink in repos_dir.
-#           "hidden" removes the symlink but keeps the registration.
+#   path:     Absolute or relative path to the repository on disk.
+#             Relative paths are resolved relative to this config file.
+#   scope:    "visible" (default) creates a symlink in repos_dir.
+#             "hidden" removes the symlink but keeps the registration.
+#   rnex_dir: true (default) creates an .rnex/ directory inside the member repo
+#             for storing rnex-related documents, rules, workflows, and scripts.
+#             Set to false to disable and leave the repository completely untouched.
 #
 # Examples with absolute paths:
 #   backend-api:
 #     path: /Users/dev/projects/backend-api
 #     scope: visible
+#     rnex_dir: true
 #
 # Examples with relative paths:
 #   frontend:
 #     path: ../frontend-app
 #     scope: visible
+#     rnex_dir: true
 #
 #   shared-lib:
 #     path: ../../libs/shared
 #     scope: hidden
+#     rnex_dir: false
 
 repos:
   # backend-api:
   #   path: /Users/dev/projects/backend-api
   #   scope: visible
+  #   rnex_dir: true
   #
   # frontend-app:
   #   path: ../frontend-app
   #   scope: visible
+  #   rnex_dir: true
   #
   # analytics:
   #   path: /Users/dev/projects/analytics-service
   #   scope: hidden
+  #   rnex_dir: false

@@ -4,9 +4,5 @@
 # Directory for repository symlinks (relative to this file or absolute)
 repos_dir: ./repos
 
-# AI context files to automatically sync into member repositories
-ai_files:
-  - AGENTS.md
-
 # Member repositories managed by Repo Nexus
 repos:

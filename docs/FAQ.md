@@ -15,7 +15,7 @@ This document answers common questions about **Repo Nexus (`rnex`)**, why it exi
   - [Why not just use a monorepo or Git submodules?](#why-not-just-use-a-monorepo-or-git-submodules)
 - [Architecture & Mechanics](#architecture--mechanics)
   - [How does rnex work without copying files?](#how-does-rnex-work-without-copying-files)
-  - [What is "Scope In" vs. "Inject Out"?](#what-is-scope-in-vs-inject-out)
+  - [How does rnex connect repositories? (Zero-Touch Architecture)](#how-does-rnex-connect-repositories-zero-touch-architecture)
   - [Can I use Git commands (pull, push, commit) on symlinked repos?](#can-i-use-git-commands-pull-push-commit-on-symlinked-repos)
   - [Can AI agents create and modify files inside member repos via symlinks?](#can-ai-agents-create-and-modify-files-inside-member-repos-via-symlinks)
   - [Will rnex interfere with Git branches, remotes, or commit histories?](#will-rnex-interfere-with-git-branches-remotes-or-commit-histories)
@@ -23,10 +23,11 @@ This document answers common questions about **Repo Nexus (`rnex`)**, why it exi
   - [How does it optimize workspaces for IDEs?](#how-does-it-optimize-workspaces-for-ides)
   - [How does it support accurate AI context?](#how-does-it-support-accurate-ai-context)
   - [What is the risk of tool lock-in?](#what-is-the-risk-of-tool-lock-in)
-  - [Do I need rnex to inject symlinks into my member repos?](#do-i-need-rnex-to-inject-symlinks-into-my-member-repos)
-  - [How should AI instructions be structured across repos? (Committed files vs. symlinks)](#how-should-ai-instructions-be-structured-across-repos-committed-files-vs-symlinks)
-  - [What happens if a member repository already has an existing AI configuration file?](#what-happens-if-a-member-repository-already-has-an-existing-ai-configuration-file)
-  - [Which AI assistants and configuration files are supported?](#which-ai-assistants-and-configuration-files-are-supported)
+  - [Does rnex modify or inject loose files into member repositories?](#does-rnex-modify-or-inject-loose-files-into-member-repositories)
+  - [What is the member repository .rnex/ directory and how do AI tools use it?](#what-is-the-member-repository-rnex-directory-and-how-do-ai-tools-use-it)
+  - [How should AI instructions be structured across repos? (Committed files vs. workspace context)](#how-should-ai-instructions-be-structured-across-repos-committed-files-vs-workspace-context)
+  - [Can member repositories maintain their own AI configuration files?](#can-member-repositories-maintain-their-own-ai-configuration-files)
+  - [Which AI assistants are supported?](#which-ai-assistants-are-supported)
   - [How do I prevent AI agents from running out of context or token bloat?](#how-do-i-prevent-ai-agents-from-running-out-of-context-or-token-bloat)
 - [Platforms & Setup](#platforms--setup)
   - [What are the system requirements? Does it work on Windows?](#what-are-the-system-requirements-does-it-work-on-windows)
@@ -85,7 +86,7 @@ This creates two major frictions:
 | :--- | :--- | :--- |
 | **Git Monorepo** | Heavy migration effort, combined CI/CD pipelines, complex permission management, slow Git checkouts. | **Zero migration**: Repositories remain completely independent with their own remotes, histories, and deployment pipelines. |
 | **Git Submodules** | Detached HEAD states, tricky merge conflicts, complex multi-step commits, rigid parent-child coupling. | **No Git friction**: Member repositories are linked via filesystem symlinks. Git never tracks other repos as submodules. |
-| **Manual Copy-Paste** | AI configuration files rapidly drift out of sync across repositories. | **Auto-synced**: Edit `AGENTS.md` once in the workspace; changes immediately reflect across all member repositories. |
+| **Manual Copy-Paste** | AI configuration files and rules rapidly drift out of sync across repositories. | **Centralized AI Context**: Define instructions once in workspace `AGENTS.md` and `.rnex/`; coding assistants apply them across all linked projects. |
 
 ---
 
@@ -97,14 +98,16 @@ This creates two major frictions:
 
 ---
 
-### What is "Scope In" vs. "Inject Out"?
+### How does rnex connect repositories? (Zero-Touch Architecture)
 
-`rnex` offers two complementary symlink flows:
+`rnex` uses a clean **Zero-Touch** symlink architecture:
 
-1. **Scope In (Repos into Workspace)**:
-   When you run `rnex add <name> <path>`, a symlink is created at `repos/<name>` pointing to the source project directory. Opening the workspace directory in your editor gives you (and your AI assistant) full access to all linked repositories in a single file tree.
-2. **Inject Out (AI Context into Member Repos)**:
-   Shared configuration files defined in `rnex.yaml` (such as `AGENTS.md`) can be symlinked from the workspace into the root of every member repository. Opening a repository standalone allows standalone IDE windows to discover the shared rules as local files.
+1. **Workspace Root**:
+   When you run `rnex add <name> <path>`, a single symlink is created at `repos/<name>` inside the workspace, pointing directly to the target project directory on disk.
+2. **Zero Pollution in Member Repos**:
+   `rnex` never injects symlinks, modifies existing files, or alters `.gitignore` in your member repositories. Member repositories remain 100% clean and pristine.
+3. **Unified AI Context**:
+   When opening the Repo Nexus workspace in your editor, your AI assistant sees all member repositories under `repos/` in a single file tree, guided by the workspace-level `AGENTS.md` and `.rnex/` configuration.
 
 ---
 
@@ -142,7 +145,7 @@ By defining your multi-repo structure through repo-nexus, it bridges the gap acr
 
 ### How does it support accurate AI context?
 
-It serves as an informational metadata layer across repositories. It allows you to synchronize and propagate AI rule parameters, prompt setups, and documentation frameworks (like `.cursorrules`, `AGENTS.md`, or `CLAUDE.md`) globally so that coding assistants see the entire multi-repo architecture as one coherent context.
+It serves as an informational metadata layer across repositories. It allows you to define shared AI rule parameters, guidelines, and documentation frameworks (like `AGENTS.md`, plugin packs, and `.rnex/` instructions) at the workspace level so that coding assistants see the entire multi-repo architecture as one coherent context.
 
 ---
 
@@ -152,61 +155,66 @@ Zero. Because repo-nexus only overlays structural configuration metadata rather 
 
 ---
 
-### Do I need rnex to inject symlinks into my member repos?
+### Does rnex modify or inject loose files into member repositories?
 
-**Not necessarily.** If your primary workflow is opening the Nexus workspace root (or relying on global workstation AI configs), you do **not** need `rnex` to inject symlinks into member repos.
-
-Running in **Zero-Touch Mode** (`ai_files: []` in `rnex.yaml`):
-- Keeps member repositories 100% pristine.
-- Prevents temporary symlinks or `.gitignore` modifications inside member repos.
-- The AI agent will read `AGENTS.md` directly from the workspace root and apply it across all linked projects.
-
-"Inject Out" is only needed if you frequently open individual member repositories standalone in an editor without opening the Nexus workspace, yet still want that standalone window to pick up shared rules.
+**No.** Member repository roots remain clean and unpolluted:
+- No loose symlinks, wrapper scripts, or markers are injected into member repository roots.
+- Existing repository files (such as `AGENTS.md` or `.cursorrules`) are never overwritten or altered.
+- No `.gitignore` files inside member repos are touched or modified.
+- All workspace-related documents, rules, workflows, and scripts are strictly encapsulated within a dedicated `.rnex/` directory inside the member repo.
 
 ---
 
-### How should AI instructions be structured across repos? (Committed files vs. symlinks)
+### What is the member repository .rnex/ directory and how do AI tools use it?
+
+By default, Repo Nexus initializes an `.rnex/` folder inside each member repository (`repos/<name>/.rnex/`):
+- **Encapsulated Workspace Data**: Stores documents, instructions, rules, workflows, and scripts related to Repo Nexus for this member repository, preventing any root pollution.
+- **AI Tool Awareness**: AI coding assistants (such as Antigravity, Claude Code, Cursor, Copilot) operating at the Repo Nexus workspace level are instructed via root `AGENTS.md` to inspect `repos/<name>/.rnex/` for repository-specific context, guidelines, and commands.
+- **Enabled by Default**: If `rnex_dir` is omitted for a repository, it evaluates to `true` (enabled by default).
+- **Configurable per repo**: You can enable or disable this setting at any time using `rnex_dir: true|false` in `rnex.yaml`, or via the CLI:
+  ```bash
+  rnex add --no-rnex-dir <name> <path>   # Register repo without .rnex/
+  rnex rnex-dir disable <name>          # Disable and clean .rnex/
+  rnex rnex-dir enable <name>           # Re-enable and sync .rnex/
+  ```
+  When disabled, the member repository is left 100% untouched.
+
+---
+
+### How should AI instructions be structured across repos? (Committed files vs. workspace context)
 
 The cleanest architecture separates concerns into two distinct layers:
 
 1. **Workspace Level (Nexus Root)**:
-   Contains multi-repo context, cross-service orchestrations, and workspace-wide rules in `AGENTS.md`.
+   Contains multi-repo context, cross-service orchestrations, and workspace-wide rules in `AGENTS.md` and `.rnex/`.
 2. **Member Repo Level (Committed Files)**:
-   Individual repositories can maintain their own domain-specific AI instructions (e.g., repository `.cursorrules`, `CLAUDE.md`, or component conventions) as **real, first-class files committed to Git**.
+   Individual repositories maintain their own domain-specific AI instructions (e.g., repository `.cursorrules`, `CLAUDE.md`, or component conventions) as **real, first-class files committed to Git**.
 
-**Why real committed files are better than injected symlinks for member repos**:
+**Why real committed files are best for member repos**:
 - **Shared with the Team**: Anyone on the team who clones the repo immediately gets the rules without needing `rnex` or symlinks.
 - **No Path Fragility**: Symlinks pointing back to an external workspace break if cloned on another computer or Windows. Committed files never break.
 - **Repository Autonomy**: Each project remains self-documenting and independent.
 
 ---
 
-### What happens if a member repository already has an existing AI configuration file?
+### Can member repositories maintain their own AI configuration files?
 
-`rnex` will **never replace or overwrite** existing AI files in a member repository.
+**Yes.** Individual repositories can maintain their own domain-specific AI instructions (such as `.cursorrules`, `CLAUDE.md`, or repository-level `AGENTS.md`) as standard, first-class files committed to their own Git history.
 
-When you run `rnex add <name> <path>`, `rnex` detects any pre-existing AI context files (such as `AGENTS.md` or `.cursorrules`) and prompts you whether to update them. If confirmed, `rnex` **extends** the existing file by appending the workspace context enclosed within clearly demarcated markers (`# --- REPO-NEXUS AI CONTEXT ---`).
-
-This preserves all repository-specific rules while layering universal workspace guidelines on top. Subsequent `rnex sync` calls keep the extended block synchronized without duplicating content or modifying the repository's custom instructions. Pass `-y` / `--yes` to `rnex add` to auto-confirm updating existing files.
+`rnex` never overwrites, modifies, or touches these files. When you add a repository to Repo Nexus, its local configuration remains completely intact.
 
 ---
 
-### Which AI assistants and configuration files are supported?
+### Which AI assistants are supported?
 
-`rnex` is tool-agnostic and auto-detects or syncs standard configuration files for:
+`rnex` is tool-agnostic. Any AI coding assistant that can open a workspace folder will work seamlessly with Repo Nexus, including:
 
-- **Universal Agents**: `AGENTS.md`
-- **Claude Code**: `CLAUDE.md`
-- **Cursor**: `.cursorrules`, `.cursor/rules/`
-- **Windsurf / Codeium**: `.windsurfrules`, `.windsurf/rules/`
-- **GitHub Copilot**: `.github/copilot-instructions.md`
-- **Aider**: `.aider.conf.yml`, `CONVENTIONS.md`
-- **Cline / Roo Code**: `.clinerules`
-- **Codex**: `CODEX.md`
-- **Continue.dev**: `.continue/`
-- **Skills Standards**: `SKILL.md`
-
-You can add any custom file or prompt template to the `ai_files` list in `rnex.yaml`.
+- **Universal Agents & Antigravity**: reads root `AGENTS.md`
+- **Claude Code**: reads workspace instructions
+- **Cursor**: indexes all member repositories under `repos/`
+- **Windsurf / Codeium**: indexes active repository symlinks
+- **GitHub Copilot**: provides multi-file completions across linked repositories
+- **Cline / Roo Code / Aider / Codex**: navigates across member repos via `repos/<name>/`
 
 ---
 
@@ -254,7 +262,7 @@ If you move a repository, clone a workspace on a new machine, or notice missing 
 rnex sync
 ```
 
-This command reconciles all symlinks for member repositories and AI context files defined in `rnex.yaml`, repairing broken links and ensuring your workspace is healthy. To inspect the current status, run:
+This command reconciles all scope symlinks, active plugins, and member `.rnex/` directories defined in `rnex.yaml`, repairing broken links and ensuring your workspace is healthy. To inspect the current status, run:
 
 ```bash
 rnex status
