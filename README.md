@@ -7,7 +7,7 @@
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey)](#)
 [![FAQ](https://img.shields.io/badge/docs-FAQ-blue.svg)](docs/FAQ.md)
 
-A **simple, lightweight companion tool** for multi-repo workflows. It links multiple independent repositories and shares universal AI instructions (like `AGENTS.md`) using standard Unix symlinks — **without Git submodules, monorepo migrations, or complex setup**.
+A **simple, lightweight companion tool** for multi-repo workflows. It links multiple independent repositories and shares universal AI instructions (like `AGENTS.md`) using standard Unix symlinks **without Git submodules, monorepo migrations, or complex setup**.
 
 - **No Git Submodules or Nested Git Friction**: Keep your repositories completely independent. No detached HEADs, no `.gitmodules`, and no merge conflicts between repos.
 - **A Lean Companion, Not a Workspace Replacer**: It does not replace your editor, terminal, build tools, or package manager. It is a tiny (~20 KB) helper that seamlessly complements your existing workflow.
