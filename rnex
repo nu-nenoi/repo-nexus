@@ -716,9 +716,11 @@ merge_rnex_instructions() {
   if [ -s "$_tmp" ] && [ -n "$(tail -c 1 "$_tmp" 2>/dev/null)" ]; then
     printf '\n' >> "$_tmp"
   fi
-  printf '\n%s\n' "$AI_MARKER_START" >> "$_tmp"
-  cat "$_body_tmp" >> "$_tmp"
-  printf '\n%s\n' "$AI_MARKER_END" >> "$_tmp"
+  {
+    printf '\n%s\n' "$AI_MARKER_START"
+    cat "$_body_tmp"
+    printf '\n%s\n' "$AI_MARKER_END"
+  } >> "$_tmp"
   mv "$_tmp" "$_dst"
   rm -f "$_body_tmp"
   log_ok "Merged Repo Nexus instructions with existing $(basename "$_dst")"

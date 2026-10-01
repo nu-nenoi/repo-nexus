@@ -61,6 +61,6 @@ case ":$PATH:" in
   *)
     printf '%bNote:%b %s is not in your current PATH.\n' "$_Y" "$_NC" "$BIN_DIR"
     printf 'Add it to your shell profile (~/.zshrc or ~/.bashrc):\n'
-    printf '  export PATH="%s:$PATH"\n\n' "$BIN_DIR"
+    printf "  export PATH=\"%s:\$PATH\"\n\n" "$BIN_DIR"
     ;;
 esac
