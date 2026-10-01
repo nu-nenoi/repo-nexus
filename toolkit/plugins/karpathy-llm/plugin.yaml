@@ -7,6 +7,8 @@ rules:
   - rules/KARPATHY_RULES.md: .rnex/rules/KARPATHY_RULES.md
   - workflows/wiki-ingest.md: .rnex/workflows/wiki-ingest.md
   - workflows/wiki-lint.md: .rnex/workflows/wiki-lint.md
+instructions:
+  - instructions/karpathy-llm.md: .rnex/instructions/karpathy-llm.md
 templates:
   - templates/index.md: wiki/index.md
   - templates/_log.md: wiki/_log.md

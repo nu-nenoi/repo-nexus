@@ -559,12 +559,13 @@ plugin_list_rules() {
   _pdir="$1"
   [ -f "$_pdir/plugin.yaml" ] || return 0
   awk '
-    /^rules:/ || /^ai_files:/ { r=1; next }
-    r && /^[^ #]/ { exit }
-    r && /^[ ]*-[ ]*/ {
-      sub(/^[ ]*-[ ]*/, "");
-      sub(/[ ]*#.*/, "");
-      if (length($0) > 0) print $0
+    /^(rules|instructions|ai_files):[ ]*(#.*)?$/ { in_sec = 1; next }
+    in_sec && /^[^ #]/ { in_sec = 0 }
+    in_sec && /^[ ]*-[ ]*/ {
+      line = $0
+      sub(/^[ ]*-[ ]*/, "", line)
+      sub(/[ ]*#.*/, "", line)
+      if (length(line) > 0) print line
     }
   ' "$_pdir/plugin.yaml"
 }
@@ -641,53 +642,111 @@ sync_plugins() {
   done
 }
 
-# ============================================================================
-# Commands
-# ============================================================================
+# ---- AI Instructions Management -------------------------------------------
 
-cmd_init() {
-  _target_dir="${1:-$PWD}"
-  _target_dir="$(resolve_path "$_target_dir")"
-  mkdir -p "$_target_dir"
+AI_MARKER_START="<!-- REPO-NEXUS:START -->"
+AI_MARKER_END="<!-- REPO-NEXUS:END -->"
 
-  _target_yaml="$_target_dir/$RNEX_CONFIG_FILE"
-
-  if [ -f "$_target_yaml" ]; then
-    log_warn "Workspace already initialized at $_target_dir ($RNEX_CONFIG_FILE exists)"
-    log_dim "To reconcile symlinks and plugins, run:"
-    log_dim "  rnex sync"
-    return 0
-  fi
-
-  # ---- Create AGENTS.md from sample if not present -------------------------
-  _target_agents="$_target_dir/AGENTS.md"
-  if [ ! -f "$_target_agents" ]; then
-    _script_dir="$(dirname "$SCRIPT_LOCATION")"
-    _sample="$_script_dir/docs/AGENTS.sample.md"
-    if [ -f "$_sample" ]; then
-      cp "$_sample" "$_target_agents"
-      log_ok "Created AGENTS.md from sample template"
-    else
-      cat <<'AGENTS_EOF' > "$_target_agents"
+get_rnex_instructions() {
+  cat <<'AGENTS_EOF'
 # Multi-Repo AI Workspace Context
 
 This workspace operates as a **Repo Nexus** linking multiple independent repositories via symlinks.
 
 ## Rules for AI Coding Assistants
 
-1. **Symlink Write-Through**: Files edited under `repos/<name>/` directly modify the target repository.
-2. **Repo Boundaries**: Each repository is isolated. Do not introduce cross-repo imports unless explicitly architected.
-3. **Shared Context**: This file provides root workspace guidelines across all member repositories. Keep instructions universal. Use local instructions for repo-specific rules.
-4. **Git Operations**: Commit and push changes directly within the respective member repository root.
+1. **Workspace Structure & Settings**: AI coding assistants MUST inspect and read `rnex.yaml` at the workspace root to understand the workspace structure (such as `repos_dir`), registered member repositories, and active configuration settings.
+2. **Symlink Write-Through**: Files edited under `repos/<name>/` directly modify the target repository.
+3. **Repo Boundaries**: Each repository is isolated. Do not introduce cross-repo imports unless explicitly architected.
+4. **Shared Context**: This file governs AI assistant behavior across all member repositories. Keep instructions universal. Use local instructions for repo-specific rules.
+5. **Member Repo RNEX Context**: Member repositories may contain an `.rnex/` directory (accessible via `repos/<name>/.rnex/`) containing repository-specific documents, instructions, rules, workflows, and scripts managed by Repo Nexus. AI assistants operating at the workspace level MUST inspect `repos/<name>/.rnex/` for member-specific context, guidelines, and commands.
+6. **Plugin Instructions**: If plugins are enabled in `rnex.yaml` (under `plugins:`), AI coding assistants MUST read instructions for each enabled plugin from its separate instruction files (located in `.rnex/instructions/` or `.rnex/rules/`).
+7. **Git Operations**: Commit and push changes directly within the respective member repository root.
 AGENTS_EOF
-      log_ok "Created AGENTS.md with default template"
-    fi
-  else
-    log_info "AGENTS.md already exists, skipping creation"
+}
+
+merge_rnex_instructions() {
+  _dst="$1"
+  _body_tmp="$(mktemp)"
+  get_rnex_instructions > "$_body_tmp"
+
+  if [ ! -f "$_dst" ]; then
+    mkdir -p "$(dirname "$_dst")"
+    printf '%s\n' "$AI_MARKER_START" > "$_dst"
+    cat "$_body_tmp" >> "$_dst"
+    printf '\n%s\n' "$AI_MARKER_END" >> "$_dst"
+    rm -f "$_body_tmp"
+    log_ok "Created $(basename "$_dst") with Repo Nexus instructions"
+    return 0
   fi
 
-  # ---- Generate config file ------------------------------------------------
-  cat > "$_target_yaml" <<YAML_EOF
+  # If delimiters already exist, update the block in-place
+  if grep -qF "$AI_MARKER_START" "$_dst" 2>/dev/null; then
+    _tmp="$(mktemp)"
+    awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" -v src="$_body_tmp" '
+      $0 == s {
+        in_b = 1
+        print s
+        while ((getline line < src) > 0) print line
+        close(src)
+        next
+      }
+      $0 == e {
+        in_b = 0
+        print e
+        next
+      }
+      !in_b { print }
+    ' "$_dst" > "$_tmp" && mv "$_tmp" "$_dst"
+    rm -f "$_body_tmp"
+    log_ok "Updated Repo Nexus instructions in $(basename "$_dst")"
+    return 0
+  fi
+
+  # If no delimiters, check if file already has up-to-date rnex instructions
+  if grep -q "rnex.yaml" "$_dst" 2>/dev/null && grep -qi "Plugin Instructions" "$_dst" 2>/dev/null; then
+    rm -f "$_body_tmp"
+    log_info "$(basename "$_dst") already contains Repo Nexus instructions"
+    return 0
+  fi
+
+  # Append rnex instructions block to existing instructions
+  _tmp="$(mktemp)"
+  cp "$_dst" "$_tmp"
+  if [ -s "$_tmp" ] && [ -n "$(tail -c 1 "$_tmp" 2>/dev/null)" ]; then
+    printf '\n' >> "$_tmp"
+  fi
+  printf '\n%s\n' "$AI_MARKER_START" >> "$_tmp"
+  cat "$_body_tmp" >> "$_tmp"
+  printf '\n%s\n' "$AI_MARKER_END" >> "$_tmp"
+  mv "$_tmp" "$_dst"
+  rm -f "$_body_tmp"
+  log_ok "Merged Repo Nexus instructions with existing $(basename "$_dst")"
+}
+
+# ============================================================================
+# Commands
+# ============================================================================
+
+cmd_init() {
+  if [ -n "$CUSTOM_CONFIG" ]; then
+    _target_yaml="$(resolve_path "$CUSTOM_CONFIG")"
+    _target_dir="$(dirname "$_target_yaml")"
+  else
+    _target_dir="${1:-$PWD}"
+    _target_dir="$(resolve_path "$_target_dir")"
+    _target_yaml="$_target_dir/$RNEX_CONFIG_FILE"
+  fi
+  mkdir -p "$_target_dir"
+
+  # ---- 1. Create config file if no one is existing for specified or current dir ----
+  _config_created=0
+  if [ -f "$_target_yaml" ]; then
+    log_warn "Workspace configuration already exists at $_target_dir ($RNEX_CONFIG_FILE exists)"
+    log_dim "To reconcile symlinks and plugins, run:"
+    log_dim "  rnex sync"
+  else
+    cat > "$_target_yaml" <<YAML_EOF
 # Repo Nexus workspace configuration
 # See docs/rnex.example.yaml for a comprehensive example with all options.
 
@@ -700,6 +759,26 @@ plugins:
 # Member repositories managed by Repo Nexus
 repos:
 YAML_EOF
+    _config_created=1
+    log_ok "Created $RNEX_CONFIG_FILE"
+  fi
+
+  # ---- 2. Merge rnex instructions with existing instructions if they exist --------
+  _target_agents="$_target_dir/AGENTS.md"
+  _existing_inst_found=0
+
+  for _cand in "AGENTS.md" "CLAUDE.md" ".cursorrules" ".github/copilot-instructions.md" "GEMINI.md" ".windsurfrules"; do
+    _c_path="$_target_dir/$_cand"
+    if [ -f "$_c_path" ]; then
+      _existing_inst_found=1
+      merge_rnex_instructions "$_c_path"
+    fi
+  done
+
+  # If AGENTS.md was not among existing files, ensure AGENTS.md is created
+  if [ ! -f "$_target_agents" ]; then
+    merge_rnex_instructions "$_target_agents"
+  fi
 
   # ---- Create repos directory -----------------------------------------------
   _repos_dir="$_target_dir/repos"
@@ -707,14 +786,18 @@ YAML_EOF
 
   # ---- Create internal .rnex directory --------------------------------------
   mkdir -p "$_target_dir/.rnex"
+  mkdir -p "$_target_dir/.rnex/rules"
+  mkdir -p "$_target_dir/.rnex/instructions"
 
-  printf '\n'
-  log_ok "Initialized Repo Nexus workspace at ${_BOLD}$_target_dir${_NC}"
-  log_dim "Created $RNEX_CONFIG_FILE, AGENTS.md, .rnex/, and repos/"
-  printf '\n'
-  log_info "Next steps:"
-  log_dim "1. Add repositories with: rnex add <name> <path>"
-  log_dim "2. See docs/rnex.example.yaml for a full configuration reference"
+  if [ "$_config_created" -eq 1 ]; then
+    printf '\n'
+    log_ok "Initialized Repo Nexus workspace at ${_BOLD}$_target_dir${_NC}"
+    log_dim "Created $RNEX_CONFIG_FILE, AGENTS.md, .rnex/, and repos/"
+    printf '\n'
+    log_info "Next steps:"
+    log_dim "1. Add repositories with: rnex add <name> <path>"
+    log_dim "2. See docs/rnex.example.yaml for a full configuration reference"
+  fi
 }
 
 cmd_add() {
@@ -1101,7 +1184,13 @@ cmd_plugin_disable() {
         if [ -L "$_rpath/.rnex/$_rel_sub" ]; then
           rm -f "$_rpath/.rnex/$_rel_sub"
         fi
+        rmdir "$_rpath/.rnex/instructions" 2>/dev/null || true
+        rmdir "$_rpath/.rnex/rules" 2>/dev/null || true
+        rmdir "$_rpath/.rnex/workflows" 2>/dev/null || true
       done
+      rmdir "$NEXUS_DIR/.rnex/instructions" 2>/dev/null || true
+      rmdir "$NEXUS_DIR/.rnex/rules" 2>/dev/null || true
+      rmdir "$NEXUS_DIR/.rnex/workflows" 2>/dev/null || true
     done
   fi
 

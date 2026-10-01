@@ -17,15 +17,16 @@ Do not hard-code any specific AI tool or harness into the wiki structure itself.
 Ask ALL of the following questions and wait for answers:
 
 [Q1] Which AI agent instruction file should the wiki rules be written to?
-  - `AGENTS.md` (universal, works across most harnesses)
-  - `CLAUDE.md` (Claude Code / Anthropic)
-  - `.cursor/rules/wiki.mdc` (Cursor)
-  - `.github/copilot-instructions.md` (GitHub Copilot)
-  - `GEMINI.md` (Google Gemini / Antigravity)
-  - `.windsurfrules` (Windsurf)
-  - Other — specify path
-
-  Append a `## Karpathy Wiki Rules` section to that file. Preserve all existing content.
+  - In a Repo Nexus workspace: plugin instructions are maintained in separate instructions files (`.rnex/instructions/karpathy-llm.md` and `.rnex/rules/KARPATHY_RULES.md`). Agents read `rnex.yaml` to detect enabled plugins and read their separate instructions files.
+  - In a standalone setup (outside Repo Nexus):
+    - `AGENTS.md` (universal, works across most harnesses)
+    - `CLAUDE.md` (Claude Code / Anthropic)
+    - `.cursor/rules/wiki.mdc` (Cursor)
+    - `.github/copilot-instructions.md` (GitHub Copilot)
+    - `GEMINI.md` (Google Gemini / Antigravity)
+    - `.windsurfrules` (Windsurf)
+    - Other — specify path
+    Append a `## Karpathy Wiki Rules` section to that file. Preserve all existing content.
 
 [Q2] What is this wiki for?
   - Research / reading list — articles, papers, PDFs on a topic

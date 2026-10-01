@@ -42,15 +42,16 @@ Reference specification: [setup-karpathy-wiki.md](https://github.com/nu-nenoi/ai
 When an AI agent or developer sets up the Karpathy LLM Wiki in a repository or workspace, consult the Step 0 configuration questions:
 
 1. **[Q1] Which AI agent instruction file should the wiki rules be written to?**
-   - `AGENTS.md` (universal, works across most harnesses)
-   - `CLAUDE.md` (Claude Code / Anthropic)
-   - `.cursor/rules/wiki.mdc` (Cursor)
-   - `.github/copilot-instructions.md` (GitHub Copilot)
-   - `GEMINI.md` (Google Gemini / Antigravity)
-   - `.windsurfrules` (Windsurf)
-   - Other — specify path
-
-   *Append the `## Karpathy Wiki Rules` section to that file while preserving all existing content.*
+   - In a **Repo Nexus workspace**: Instructions are maintained in separate instructions files (`.rnex/instructions/karpathy-llm.md` and `.rnex/rules/KARPATHY_RULES.md`). Agents read `rnex.yaml` to detect enabled plugins and read their dedicated instructions files automatically.
+   - In a **standalone setup** (outside Repo Nexus):
+     - `AGENTS.md` (universal, works across most harnesses)
+     - `CLAUDE.md` (Claude Code / Anthropic)
+     - `.cursor/rules/wiki.mdc` (Cursor)
+     - `.github/copilot-instructions.md` (GitHub Copilot)
+     - `GEMINI.md` (Google Gemini / Antigravity)
+     - `.windsurfrules` (Windsurf)
+     - Other — specify path
+     *Append the `## Karpathy Wiki Rules` section to that file while preserving all existing content.*
 
 2. **[Q2] What is this wiki for?**
    - Research / reading list — articles, papers, PDFs on a topic
@@ -87,6 +88,8 @@ my-workspace/
 │   ├── hot.md                       # Rolling ~500-word quick-orient context
 │   └── _log.md                      # Ingestion & lint audit history
 ├── .rnex/
+│   ├── instructions/
+│   │   └── karpathy-llm.md          # Dedicated plugin instructions (auto-symlinked)
 │   ├── rules/
 │   │   └── KARPATHY_RULES.md        # Cardinal principles & wiki rules (auto-symlinked)
 │   ├── workflows/

@@ -208,7 +208,9 @@ run_test "Plugin enable command"
 grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" || { fail "karpathy-llm not in rnex.yaml"; exit 1; }
 grep -q "lint_trigger_enabled:[ ]*true" "$TEST_WORKSPACE/rnex.yaml" || { fail "lint_trigger_enabled not in rnex.yaml"; exit 1; }
 [ -f "$TEST_WORKSPACE/.rnex/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md missing in workspace root"; exit 1; }
+[ -L "$TEST_WORKSPACE/.rnex/instructions/karpathy-llm.md" ] || { fail "karpathy-llm.md missing from workspace .rnex/instructions"; exit 1; }
 [ -L "$TEST_REPO/.rnex/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md symlink missing in member repo .rnex"; exit 1; }
+[ -L "$TEST_REPO/.rnex/instructions/karpathy-llm.md" ] || { fail "karpathy-llm.md symlink missing in member repo .rnex/instructions"; exit 1; }
 [ ! -e "$TEST_REPO/KARPATHY_RULES.md" ] || { fail "Plugin rule should not be loose at member repo root"; exit 1; }
 [ -f "$TEST_WORKSPACE/.rnex/templates/LLM_WIKI.sample.md" ] || { fail "LLM_WIKI.sample.md not initialized in .rnex/templates/"; exit 1; }
 [ -f "$TEST_WORKSPACE/.rnex/scripts/wiki-lint-trigger.sh" ] || { fail "wiki-lint-trigger.sh not initialized in .rnex/scripts/"; exit 1; }
@@ -229,7 +231,9 @@ run_test "Plugin disable command"
 "$TEST_WORKSPACE/rnex" plugin disable karpathy-llm >/dev/null
 grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" && { fail "karpathy-llm still in rnex.yaml"; exit 1; }
 [ ! -e "$TEST_WORKSPACE/.rnex/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md not unlinked from workspace root"; exit 1; }
+[ ! -e "$TEST_WORKSPACE/.rnex/instructions/karpathy-llm.md" ] || { fail "karpathy-llm.md not unlinked from workspace root"; exit 1; }
 [ ! -e "$TEST_REPO/.rnex/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md not unlinked from member repo .rnex"; exit 1; }
+[ ! -e "$TEST_REPO/.rnex/instructions/karpathy-llm.md" ] || { fail "karpathy-llm.md not unlinked from member repo .rnex"; exit 1; }
 [ -f "$TEST_REPO/.rnex/README.md" ] || { fail "Member repo .rnex/README.md should still exist"; exit 1; }
 _plist_after="$("$TEST_WORKSPACE/rnex" plugin list 2>&1)"
 echo "$_plist_after" | grep -q "available" || { fail "karpathy-llm not returned to available status"; exit 1; }
@@ -311,6 +315,61 @@ _add_y_out="$("$TEST_WORKSPACE/rnex" add -y auto-app "$_auto_repo" 2>&1)"
 [ -L "$TEST_WORKSPACE/repos/auto-app" ] || { fail "Scope link missing for auto-app"; exit 1; }
 grep -q "Pre-existing Custom Rules" "$_auto_repo/AGENTS.md" || { fail "Custom rules lost"; exit 1; }
 ! grep -q "REPO-NEXUS" "$_auto_repo/AGENTS.md" || { fail "Workspace markers injected with -y"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Init creates config file in current directory when none exists"
+_cwd_ws="$TEST_TMP/cwd-workspace"
+mkdir -p "$_cwd_ws"
+(
+  cd "$_cwd_ws"
+  "$TEST_WORKSPACE/rnex" init >/dev/null
+  [ -f "$_cwd_ws/rnex.yaml" ] || exit 1
+  [ -f "$_cwd_ws/AGENTS.md" ] || exit 2
+) || { fail "Failed to initialize in current directory without arguments"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Init in directory with existing AGENTS.md merges rnex instructions"
+_merge_ws="$TEST_TMP/merge-workspace"
+mkdir -p "$_merge_ws"
+printf '# Custom Team Rules\n- Enforce strict typing\n- Run tests before commit\n' > "$_merge_ws/AGENTS.md"
+"$TEST_WORKSPACE/rnex" init "$_merge_ws" >/dev/null
+[ -f "$_merge_ws/rnex.yaml" ] || { fail "rnex.yaml was not created"; exit 1; }
+[ -f "$_merge_ws/AGENTS.md" ] || { fail "AGENTS.md missing"; exit 1; }
+grep -q "Custom Team Rules" "$_merge_ws/AGENTS.md" || { fail "Original custom rules were lost during merge"; exit 1; }
+grep -q "Enforce strict typing" "$_merge_ws/AGENTS.md" || { fail "Original custom rule bullet lost"; exit 1; }
+grep -q "REPO-NEXUS:START" "$_merge_ws/AGENTS.md" || { fail "REPO-NEXUS delimiter missing"; exit 1; }
+grep -q "rnex.yaml" "$_merge_ws/AGENTS.md" || { fail "rnex.yaml reading rule not merged"; exit 1; }
+grep -q "Plugin Instructions" "$_merge_ws/AGENTS.md" || { fail "Plugin instructions rule not merged"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Init re-run idempotence preserves existing instructions without duplicating rnex block"
+"$TEST_WORKSPACE/rnex" init "$_merge_ws" >/dev/null
+grep -q "Custom Team Rules" "$_merge_ws/AGENTS.md" || { fail "Original custom rules lost on re-init"; exit 1; }
+_marker_count="$(grep -c "REPO-NEXUS:START" "$_merge_ws/AGENTS.md" || true)"
+[ "$_marker_count" -eq 1 ] || { fail "Duplicate REPO-NEXUS blocks created on re-init: count=$_marker_count"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Init in directory with existing CLAUDE.md merges rnex instructions and creates AGENTS.md"
+_claude_ws="$TEST_TMP/claude-workspace"
+mkdir -p "$_claude_ws"
+printf '# Claude Instructions\n- Use concise code\n' > "$_claude_ws/CLAUDE.md"
+"$TEST_WORKSPACE/rnex" init "$_claude_ws" >/dev/null
+[ -f "$_claude_ws/rnex.yaml" ] || { fail "rnex.yaml missing"; exit 1; }
+[ -f "$_claude_ws/AGENTS.md" ] || { fail "AGENTS.md was not created"; exit 1; }
+grep -q "Claude Instructions" "$_claude_ws/CLAUDE.md" || { fail "Original CLAUDE.md content was lost"; exit 1; }
+grep -q "REPO-NEXUS:START" "$_claude_ws/CLAUDE.md" || { fail "REPO-NEXUS delimiter missing in CLAUDE.md"; exit 1; }
+grep -q "rnex.yaml" "$_claude_ws/CLAUDE.md" || { fail "rnex.yaml reading rule missing from CLAUDE.md"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Default instructions instruct agents to read rnex.yaml and plugin instructions from separate files"
+grep -q "rnex.yaml" "$_cwd_ws/AGENTS.md" || { fail "Default instructions do not mandate reading rnex.yaml"; exit 1; }
+grep -q "Plugin Instructions" "$_cwd_ws/AGENTS.md" || { fail "Plugin instructions rule missing from default AGENTS.md"; exit 1; }
+grep -q "separate instruction files" "$_cwd_ws/AGENTS.md" || { fail "Reference to separate instruction files missing"; exit 1; }
 pass
 
 # ==========================================================================

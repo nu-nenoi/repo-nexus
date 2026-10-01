@@ -93,22 +93,25 @@ A **simple, lightweight companion tool** for multi-repo workflows. It links mult
 
 ## Installation
 
-Install `rnex` via npm, GitHub Packages, or the zero-dependency native installer:
+Install `rnex` via npm, standalone one-liner (`curl` / `wget`), or from source:
 
-### Option 1: Via npm (Recommended)
+### Option 1: Via npm (Global)
 
 ```bash
 npm install -g repo-nexus
 ```
-*(Installs both `repo-nexus` and `rnex` commands globally, or run via `npx repo-nexus init`)*
+*(Installs both `repo-nexus` and `rnex` commands globally, or run without installing via `npx repo-nexus init`)*
 
-### Option 2: Via GitHub Packages
+### Option 2: Standalone One-Liner (curl / wget — Zero Dependencies, No Node.js)
 
 ```bash
-npm install -g @nu-nenoi/repo-nexus --registry=https://npm.pkg.github.com
+curl -fsSL https://raw.githubusercontent.com/nu-nenoi/repo-nexus/main/scripts/install.sh | sh
+# or
+wget -qO- https://raw.githubusercontent.com/nu-nenoi/repo-nexus/main/scripts/install.sh | sh
 ```
+*(Downloads and links `rnex` and `repo-nexus` into `~/.local/bin` without requiring Node.js or npm)*
 
-### Option 3: Native Installer (Zero Dependencies)
+### Option 3: Native Installer (Clone & Install)
 
 Clone the repository and run the built-in installer:
 
@@ -144,7 +147,7 @@ rnex add frontend ../web-app          # relative paths work too
 rnex status
 ```
 
-During `rnex init`, the CLI automatically scans for existing AI configuration files (like `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`) and adds them to your config.
+During `rnex init`, the CLI creates `rnex.yaml` if none exists for the directory, and merges Repo Nexus workspace instructions with any existing AI instructions (such as `AGENTS.md`, `CLAUDE.md`, `.cursorrules`).
 
 ---
 

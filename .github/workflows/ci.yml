@@ -44,13 +44,14 @@ jobs:
           ./tests/test_cli.sh
 
   publish:
-    name: Stage Publish to npm
+    name: Publish to npm & GitHub Packages
     needs: [lint, test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+      packages: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
@@ -79,4 +80,54 @@ jobs:
           else
             echo "Staging ${PKG_NAME}@${PKG_VERSION} on npm..."
             npm stage publish
+          fi
+
+      - name: Publish to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Configuring GitHub Packages registry..."
+          npm config set @nu-nenoi:registry=https://npm.pkg.github.com
+          npm config set //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+
+          # Backfill any missing tagged versions to GitHub Packages
+          for TAG in $(git tag -l "v*"); do
+            TAG_VER="${TAG#v}"
+            echo "Checking if @nu-nenoi/repo-nexus@${TAG_VER} is published on GitHub Packages..."
+            GPR_VER=$(npm view "@nu-nenoi/repo-nexus@${TAG_VER}" version --registry=https://npm.pkg.github.com 2>/dev/null || true)
+            if [ "$GPR_VER" != "$TAG_VER" ]; then
+              echo "Publishing missing version ${TAG_VER} (${TAG}) to GitHub Packages..."
+              git checkout -f "$TAG" -q
+              node -e '
+                const pkg = require("./package.json");
+                pkg.name = "@nu-nenoi/repo-nexus";
+                pkg.publishConfig = { registry: "https://npm.pkg.github.com" };
+                require("fs").writeFileSync("./package.json", JSON.stringify(pkg, null, 2) + "\n");
+              '
+              npm publish --registry=https://npm.pkg.github.com || echo "Skipping ${TAG_VER}..."
+              git checkout -f "$CURRENT_COMMIT" -q
+            fi
+          done
+
+          git checkout -f "$CURRENT_COMMIT" -q
+
+          # Scope and publish current HEAD version if not already published
+          node -e '
+            const pkg = require("./package.json");
+            pkg.name = "@nu-nenoi/repo-nexus";
+            pkg.publishConfig = { registry: "https://npm.pkg.github.com" };
+            require("fs").writeFileSync("./package.json", JSON.stringify(pkg, null, 2) + "\n");
+          '
+
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Checking if @nu-nenoi/repo-nexus@${PKG_VERSION} is already published on GitHub Packages..."
+          GPR_VERSION=$(npm view "@nu-nenoi/repo-nexus@${PKG_VERSION}" version --registry=https://npm.pkg.github.com 2>/dev/null || true)
+
+          if [ "$GPR_VERSION" = "$PKG_VERSION" ]; then
+            echo "Version ${PKG_VERSION} of @nu-nenoi/repo-nexus is already published on GitHub Packages. Skipping."
+          else
+            echo "Publishing @nu-nenoi/repo-nexus@${PKG_VERSION} to GitHub Packages..."
+            npm publish --registry=https://npm.pkg.github.com
           fi
