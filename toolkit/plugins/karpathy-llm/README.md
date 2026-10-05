@@ -17,7 +17,7 @@ Reference specification: [setup-karpathy-wiki.md](https://github.com/nu-nenoi/ai
 * **Goal-Driven Execution:** Upfront verification criteria, automated tests, and rigorous diff review.
 
 ### 2. Multi-Repo Context Engineering & Autonomy
-* Guidelines tailored for Repo Nexus workspaces respecting member repository autonomy and symlink write-through semantics.
+* Guidelines tailored for Repo Nexus workspaces respecting member repository autonomy and physical repository boundaries.
 
 ### 3. Complete Karpathy LLM Wiki Architecture
 * **`/raw/` Intake Directory:** Append-only directory where unmodified source material (articles, transcripts, docs, meeting notes) is deposited. Includes `.gitkeep`.
@@ -79,16 +79,18 @@ my-workspace/
 │   ├── hot.md                       # Rolling ~500-word quick-orient context
 │   └── _log.md                      # Ingestion & lint audit history
 ├── .rnex/
-│   ├── instructions/
-│   │   └── karpathy-llm.md          # Dedicated plugin instructions (auto-symlinked)
-│   ├── rules/
-│   │   └── KARPATHY_RULES.md        # Cardinal principles & wiki rules (auto-symlinked)
-│   ├── workflows/
-│   │   ├── wiki-ingest.md           # 8-step decomposition & ingestion workflow
-│   │   └── wiki-lint.md             # 10-step graph validation & maintenance workflow
-│   └── templates/
-│       ├── wiki-page.template.md    # Atomic page template with typed relations
-│       └── LLM_WIKI.sample.md       # Sample wiki walkthrough
+│   └── plugins/
+│       └── karpathy-llm/
+│           ├── instructions/
+│           │   └── karpathy-llm.md  # Dedicated plugin instructions
+│           ├── rules/
+│           │   └── KARPATHY_RULES.md# Cardinal principles & wiki rules
+│           ├── workflows/
+│           │   ├── wiki-ingest.md   # 8-step decomposition & ingestion workflow
+│           │   └── wiki-lint.md     # 10-step graph validation & maintenance workflow
+│           └── templates/
+│               ├── wiki-page.template.md# Atomic page template with typed relations
+│               └── LLM_WIKI.sample.md# Sample wiki walkthrough
 └── rnex.yaml                        # Plugin configuration
 ```
 

@@ -32,16 +32,15 @@ These guidelines provide standing operational instructions for AI coding assista
 
 ## 2. Multi-Repo Context Engineering
 
-In a Repo Nexus workspace, independent repositories are unified into a single active scope via Unix symlinks. Coding agents must follow these rules:
+In a Repo Nexus workspace, independent repositories are organized into `./repos/<name>/` as autonomous Git repositories. Coding agents must follow these rules:
 
-1. **Symlink Write-Through:**
-   - Edits made to `repos/<name>/` write directly through to the underlying member repository on disk.
-   - Do not attempt to move or replace symlinks with regular directories.
+1. **Repository Boundaries:**
+   - Edits made to `repos/<name>/` modify the underlying member repository directly.
+   - Member repositories are autonomous projects. Do not introduce cross-repository source imports or shared runtime dependencies unless an explicit monorepo architecture is configured.
 
-2. **Repository Autonomy & Member .rnex Directory:**
-   - Member repositories are independent projects. Do not introduce cross-repository source imports or shared runtime dependencies unless an explicit monorepo architecture is configured.
+2. **Member .rnex Directory Routing:**
    - Member repositories may contain an `.rnex/` directory (e.g. `repos/<name>/.rnex/`) containing repository-specific documents, instructions, rules, workflows, and scripts. Coding assistants must inspect this directory for member-specific instructions.
-   - Run git operations (commits, branches, pushes) within the respective member repository root.
+   - Run git operations (commits, branches, pushes) directly within the respective member repository root (`repos/<name>/`).
 
 3. **Context Economy:**
    - Do not redundantly read entire files or directory trees when targeted symbol lookups or line ranges suffice.

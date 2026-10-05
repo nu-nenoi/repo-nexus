@@ -1,6 +1,9 @@
-# Symlinked repos (managed by rnex, not real content)
+# Member repos (managed by rnex)
 repos/*
 !repos/.gitkeep
+
+# Repo Nexus internal state & plugins
+.rnex/
 
 # OS
 .DS_Store
@@ -12,4 +15,3 @@ node_modules/
 # Local machine-specific configuration
 .local.rnex.yaml
 .rnex.local.yaml
-

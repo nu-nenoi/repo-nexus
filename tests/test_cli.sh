@@ -73,6 +73,7 @@ run_test "Initialize workspace with gitignore and routing instructions"
 [ -d "$TEST_WORKSPACE/repos" ] || { fail "repos/ dir missing"; exit 1; }
 [ -f "$TEST_WORKSPACE/.gitignore" ] || { fail ".gitignore missing"; exit 1; }
 grep -q 'repos/\*' "$TEST_WORKSPACE/.gitignore" || { fail "repos/* not in .gitignore"; exit 1; }
+grep -q '^\.rnex/' "$TEST_WORKSPACE/.gitignore" || { fail ".rnex/ not in .gitignore"; exit 1; }
 grep -q '.local.rnex.yaml' "$TEST_WORKSPACE/.gitignore" || { fail ".local.rnex.yaml not in .gitignore"; exit 1; }
 pass
 
@@ -200,13 +201,48 @@ grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" && { fail "karpathy-llm still
 pass
 
 # --------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 run_test "Routing-Only Instructions in AGENTS.md"
 _agents_content="$(cat "$TEST_WORKSPACE/AGENTS.md")"
 echo "$_agents_content" | grep -q "Read Configuration First" || { fail "AGENTS.md missing Read Configuration First"; exit 1; }
 echo "$_agents_content" | grep -q ".local.rnex.yaml" || { fail "AGENTS.md missing .local.rnex.yaml"; exit 1; }
 echo "$_agents_content" | grep -q "Highest Priority" || { fail "AGENTS.md missing Highest Priority notice"; exit 1; }
 echo "$_agents_content" | grep -q ".rnex/plugins/<plugin-name>/" || { fail "AGENTS.md missing plugin routing"; exit 1; }
+echo "$_agents_content" | grep -q "Routing Protocol for AI Assistants" || { fail "AGENTS.md missing Routing Protocol heading"; exit 1; }
+! echo "$_agents_content" | grep -qi "symlink" || { fail "AGENTS.md should not contain symlink mentions"; exit 1; }
 ! echo "$_agents_content" | grep -q "Think Before Coding" || { fail "AGENTS.md should not contain inlined plugin rules"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Gitignore reconciliation removes legacy lint_trigger_counter and ensures .rnex/"
+printf '\n.rnex/.lint_trigger_counter\nwiki/.lint_trigger_counter\n.lint_trigger_counter\n' >> "$TEST_WORKSPACE/.gitignore"
+"$TEST_WORKSPACE/rnex" fix >/dev/null
+grep -q "lint_trigger_counter" "$TEST_WORKSPACE/.gitignore" && { fail "Legacy lint_trigger_counter still present in .gitignore"; exit 1; }
+grep -q '^\.rnex/' "$TEST_WORKSPACE/.gitignore" || { fail ".rnex/ missing from .gitignore after fix"; exit 1; }
+grep -q 'repos/\*' "$TEST_WORKSPACE/.gitignore" || { fail "repos/* missing from .gitignore after fix"; exit 1; }
+grep -q '.local.rnex.yaml' "$TEST_WORKSPACE/.gitignore" || { fail ".local.rnex.yaml missing from .gitignore after fix"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Legacy un-delimited AGENTS.md with symlinks upgraded cleanly to routing protocol"
+cat <<'LEGACY_EOF' > "$TEST_WORKSPACE/AGENTS.md"
+# Multi-Repo AI Workspace Context
+
+This workspace operates as a **Repo Nexus** linking multiple independent repositories via symlinks.
+
+## Rules for AI Coding Assistants
+
+1. **Workspace Structure & Settings**: AI coding assistants MUST inspect and read `rnex.yaml`.
+2. **Symlink Write-Through**: Files edited under `repos/<name>/` directly modify the target repository.
+3. **Plugin Instructions**: If plugins are enabled in `rnex.yaml` (under `plugins:`), AI coding assistants MUST read instructions.
+LEGACY_EOF
+
+"$TEST_WORKSPACE/rnex" fix >/dev/null
+_upgraded_agents="$(cat "$TEST_WORKSPACE/AGENTS.md")"
+echo "$_upgraded_agents" | grep -q "<!-- REPO-NEXUS:START -->" || { fail "Missing start delimiter after upgrade"; exit 1; }
+echo "$_upgraded_agents" | grep -q "<!-- REPO-NEXUS:END -->" || { fail "Missing end delimiter after upgrade"; exit 1; }
+echo "$_upgraded_agents" | grep -q "Routing Protocol for AI Assistants" || { fail "Missing Routing Protocol after upgrade"; exit 1; }
+! echo "$_upgraded_agents" | grep -qi "symlink" || { fail "Upgraded AGENTS.md still contains symlink mentions"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
