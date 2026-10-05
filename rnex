@@ -907,7 +907,7 @@ cmd_init() {
   if [ -f "$_target_yaml" ]; then
     log_warn "Workspace configuration already exists at $_target_dir ($RNEX_CONFIG_FILE exists)"
     log_dim "To reconcile symlinks and plugins, run:"
-    log_dim "  rnex sync"
+    log_dim "  rnex fix"
   else
     cat > "$_target_yaml" <<YAML_EOF
 # Repo Nexus workspace configuration
@@ -1203,10 +1203,10 @@ cmd_status() {
         printf '  %b●%b %-22s %bactive%b%b → %s%b\n' "$_G" "$_NC" "$_name" "$_G" "$_NC" "$_rnex_tag" "$_path" "$_src_tag"
       elif [ -L "$_link" ]; then
         printf '  %b✗%b %-22s %bBROKEN LINK%b%b → %s%b\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "$_rnex_tag" "$_path" "$_src_tag"
-        printf '    %b↳ Suggestion: run '\''rnex sync'\'' to recreate scope link%b\n' "$_Y" "$_NC"
+        printf '    %b↳ Suggestion: run '\''rnex fix'\'' to recreate scope link%b\n' "$_Y" "$_NC"
       else
         printf '  %b✗%b %-22s %bMISSING LINK%b%b → %s%b\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "$_rnex_tag" "$_path" "$_src_tag"
-        printf '    %b↳ Suggestion: run '\''rnex sync'\'' to create scope link%b\n' "$_Y" "$_NC"
+        printf '    %b↳ Suggestion: run '\''rnex fix'\'' to create scope link%b\n' "$_Y" "$_NC"
       fi
     done
   fi
@@ -1218,11 +1218,11 @@ cmd_status() {
   printf '\n'
 }
 
-cmd_sync() {
+cmd_fix() {
   require_workspace
   ensure_repos_dir
 
-  log_info "Synchronizing workspace from $(basename "$WORKSPACE_YAML")..."
+  log_info "Fixing and reconciling workspace from $(basename "$WORKSPACE_YAML")..."
   sync_plugins
 
   yaml_list_repos | while read -r _name; do
@@ -1278,7 +1278,11 @@ cmd_sync() {
     sync_repo_rnex "$_name"
   done
 
-  log_ok "Sync complete — all scope links, plugins, and member .rnex directories reconciled"
+  log_ok "Fix complete — all scope links, plugins, and member .rnex directories reconciled"
+}
+
+cmd_sync() {
+  cmd_fix "$@"
 }
 
 cmd_plugin_list() {
@@ -1437,7 +1441,7 @@ cmd_plugin_enable() {
     log_dim "Added '$RNEX_LOCAL_CONFIG_FILE' to .gitignore"
   fi
 
-  cmd_sync
+  cmd_fix
   log_ok "Plugin '$_name' active in workspace"
 }
 
@@ -1609,7 +1613,7 @@ cmd_help() {
   WORKSPACE & SYSTEM SETUP
     init [dir]              Initialize a new Repo Nexus workspace in current (or specified) dir
     install [dir]           Install rnex & repo-nexus globally into ~/.local/bin (or custom dir)
-    sync                    Reconcile scope links, plugins & member .rnex/ directories
+    fix                     Reconcile and fix scope links, plugins & member .rnex/ directories (alias: sync)
 
   REPO MANAGEMENT
     add [--local] [--no-rnex-dir] <name> <path>  Register member repo (--local writes to .local.rnex.yaml)
@@ -1641,7 +1645,7 @@ cmd_help() {
     rnex plugin enable karpathy-llm           # Enable Karpathy LLM plugin
     rnex hide my-app                          # Temporarily hide from active indexing
     rnex show my-app                          # Bring back into active scope
-    rnex sync                                 # Reconcile all links from config
+    rnex fix                                  # Reconcile and fix all links from config (alias: sync)
 
 EOF
 }
@@ -1687,7 +1691,7 @@ case "${1:-help}" in
   list)        shift; cmd_list "$@" ;;
   status)      shift; cmd_status "$@" ;;
   rnex-dir)    shift; cmd_rnex_dir "$@" ;;
-  sync)        shift; cmd_sync "$@" ;;
+  fix|sync)    shift; cmd_fix "$@" ;;
   plugin)      shift; cmd_plugin "$@" ;;
   version|-v|--version) cmd_version ;;
   help|-h|--help) cmd_help ;;

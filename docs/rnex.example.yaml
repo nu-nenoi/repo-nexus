@@ -8,7 +8,7 @@
 #   2. Local Config (.local.rnex.yaml): Machine-specific (gitignored), overrides/provides
 #      local member repo paths and developer-specific plugin settings.
 #
-# Place it in your workspace root directory and run `rnex sync` to apply.
+# Place it in your workspace root directory and run `rnex fix` to apply.
 #
 # For more information: https://github.com/nu-nenoi/repo-nexus
 

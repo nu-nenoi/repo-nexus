@@ -106,7 +106,7 @@ This command:
 1. Adds `karpathy-llm` to `plugins:` in `rnex.yaml`.
 2. Copies initial templates (`wiki/index.md`, `wiki/_log.md`, `wiki/hot.md`, `raw/.gitkeep`, `.rnex/templates/wiki-page.template.md`, `.rnex/templates/LLM_WIKI.sample.md`).
 3. Links `KARPATHY_RULES.md` and workflows into `.rnex/rules/` and `.rnex/workflows/`.
-4. Syncs scope links and AI context files across all registered member repositories via `rnex sync`.
+4. Syncs scope links and AI context files across all registered member repositories via `rnex fix`.
 
 ### Option 2: Declarative in `rnex.yaml`
 
@@ -117,10 +117,10 @@ plugins:
   karpathy-llm: {}
 ```
 
-Then synchronize:
+Then reconcile and fix:
 
 ```bash
-rnex sync
+rnex fix
 ```
 
 ---

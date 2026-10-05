@@ -74,10 +74,10 @@ grep -q 'repos_dir:' "$TEST_WORKSPACE/rnex.yaml" || { fail "repos_dir not in con
 pass
 
 # --------------------------------------------------------------------------
-run_test "Re-init warns and suggests sync"
+run_test "Re-init warns and suggests fix"
 _reinit_output="$("$TEST_WORKSPACE/rnex" init "$TEST_WORKSPACE" 2>&1)"
 echo "$_reinit_output" | grep -qi "already" || { fail "No already-initialized warning"; exit 1; }
-echo "$_reinit_output" | grep -qi "sync" || { fail "No sync suggestion"; exit 1; }
+echo "$_reinit_output" | grep -qi "fix" || { fail "No fix suggestion"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
@@ -108,10 +108,12 @@ run_test "Hide and Show repository scope"
 pass
 
 # --------------------------------------------------------------------------
-run_test "Idempotent Sync"
+run_test "Idempotent Fix (and sync alias)"
+"$TEST_WORKSPACE/rnex" fix >/dev/null
+[ -L "$TEST_WORKSPACE/repos/test-app" ] || { fail "Fix scope failed"; exit 1; }
+[ ! -e "$TEST_REPO/AGENTS.md" ] || { fail "Fix should not inject files into member repo"; exit 1; }
 "$TEST_WORKSPACE/rnex" sync >/dev/null
-[ -L "$TEST_WORKSPACE/repos/test-app" ] || { fail "Sync scope failed"; exit 1; }
-[ ! -e "$TEST_REPO/AGENTS.md" ] || { fail "Sync should not inject files into member repo"; exit 1; }
+[ -L "$TEST_WORKSPACE/repos/test-app" ] || { fail "Sync alias failed"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
@@ -280,11 +282,11 @@ fi
 pass
 
 # --------------------------------------------------------------------------
-run_test "Zero-Touch: Sync preserves existing member repo files untouched"
+run_test "Zero-Touch: Fix preserves existing member repo files untouched"
 printf '# Updated Workspace Nexus AI Context\n- New sync rule\n' > "$TEST_WORKSPACE/AGENTS.md"
-"$TEST_WORKSPACE/rnex" sync >/dev/null
-grep -q "Repo Original Rules" "$_existing_repo/AGENTS.md" || { fail "Original rules lost during sync"; exit 1; }
-! grep -q "New sync rule" "$_existing_repo/AGENTS.md" || { fail "Member repo was modified during sync"; exit 1; }
+"$TEST_WORKSPACE/rnex" fix >/dev/null
+grep -q "Repo Original Rules" "$_existing_repo/AGENTS.md" || { fail "Original rules lost during fix"; exit 1; }
+! grep -q "New sync rule" "$_existing_repo/AGENTS.md" || { fail "Member repo was modified during fix"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
@@ -395,15 +397,15 @@ echo "$_status_out" | grep "team-app" | grep -q "via .local.rnex.yaml" || { fail
 pass
 
 # --------------------------------------------------------------------------
-run_test "Sync suggests providing missing path for repo without path"
+run_test "Fix suggests providing missing path for repo without path"
 cat >> "$TEST_WORKSPACE/rnex.yaml" <<EOF
   unlinked-app:
     scope: visible
 EOF
-_sync_out="$("$TEST_WORKSPACE/rnex" sync 2>&1)"
-echo "$_sync_out" | grep -qi "unlinked-app" || { fail "Sync did not mention unlinked-app"; exit 1; }
-echo "$_sync_out" | grep -qi "NO path configured" || { fail "Sync did not warn about missing path"; exit 1; }
-echo "$_sync_out" | grep -q "rnex add unlinked-app" || { fail "Sync did not suggest rnex add --local"; exit 1; }
+_sync_out="$("$TEST_WORKSPACE/rnex" fix 2>&1)"
+echo "$_sync_out" | grep -qi "unlinked-app" || { fail "Fix did not mention unlinked-app"; exit 1; }
+echo "$_sync_out" | grep -qi "NO path configured" || { fail "Fix did not warn about missing path"; exit 1; }
+echo "$_sync_out" | grep -q "rnex add unlinked-app" || { fail "Fix did not suggest rnex add --local"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------

@@ -176,8 +176,8 @@ rnex hide my-app
 # Restore a hidden repo back to active scope
 rnex show my-app
 
-# Reconcile all scope links, plugins, and member .rnex/ directories
-rnex sync
+# Reconcile and fix all scope links, plugins, and member .rnex/ directories (alias: sync)
+rnex fix
 
 # Unregister a repository (removes scope link & member .rnex assets)
 rnex remove my-app
@@ -288,7 +288,7 @@ repos:
 | `rnex rnex-dir <enable\|disable> <name>` | Toggle `.rnex/` directory integration for a member repository |
 | `rnex show <name>` | Make a hidden repo visible in workspace |
 | `rnex hide <name>` | Hide a repo from active workspace indexing |
-| `rnex sync` | Reconcile all scope symlinks, plugins, and member `.rnex/` directories |
+| `rnex fix` (or `sync`) | Reconcile and fix all scope symlinks, plugins, and member `.rnex/` directories |
 
 ---
 

@@ -259,7 +259,7 @@ In your Repo Nexus workspace repository:
 If you move a repository, clone a workspace on a new machine, or notice missing symlinks, run:
 
 ```bash
-rnex sync
+rnex fix
 ```
 
 This command reconciles all scope symlinks, active plugins, and member `.rnex/` directories defined in `rnex.yaml`, repairing broken links and ensuring your workspace is healthy. To inspect the current status, run:
