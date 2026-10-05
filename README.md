@@ -277,7 +277,7 @@ repos:
 |:---|:---|
 | `-c, --config <file>` | Explicit path to `rnex.yaml` (executes in that workspace directory) |
 | `-h, --help` | Display command help and usage instructions |
-| `-v, --version` | Display version (v0.4.0) |
+| `-v, --version` | Display version |
 
 ### Commands
 | Command | Description |
@@ -327,7 +327,7 @@ rnex completion fish | source
 
 ```
 repo-nexus/
-├── package.json                    # npm package manifest (single source of truth for v0.4.0)
+├── package.json                    # npm package manifest (single version source of truth)
 ├── rnex                            # CLI executable (POSIX shell)
 ├── AGENTS.md                       # Routing-only universal AI instructions
 ├── docs/

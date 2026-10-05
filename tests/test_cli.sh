@@ -149,9 +149,10 @@ run_test "Remove member repository (unregisters and deletes repos/<name>)"
 pass
 
 # --------------------------------------------------------------------------
-run_test "Version command outputs 0.4.0 from package.json"
+run_test "Version command outputs version dynamically from package.json"
+_expected_ver="$(grep '"version"' "$DIR/package.json" 2>/dev/null | head -n1 | sed -e 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/')"
 _ver="$("$TEST_WORKSPACE/rnex" version 2>&1)"
-echo "$_ver" | grep -q "0.4.0" || { fail "Version 0.4.0 not displayed: got $_ver"; exit 1; }
+echo "$_ver" | grep -q "$_expected_ver" || { fail "Version $_expected_ver not displayed: got $_ver"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
