@@ -10,16 +10,16 @@ Reference specification: [setup-karpathy-wiki.md](https://github.com/nu-nenoi/ai
 
 ## What It Provides
 
-### 1. The 4 Cardinal Principles for Coding Agents (`rules/KARPATHY_RULES.md`)
+### 1. The 4 Cardinal Principles for Coding Agents (`rules/behavioral.md`)
 * **Think Before Coding:** Explicit assumptions, problem formulation, and trade-off evaluation before writing code.
 * **Simplicity First:** Minimal abstractions, readable implementations, and zero boilerplate bloat.
 * **Surgical Changes:** Minimal blast radius, preserved comments/docstrings, and tightly focused diffs.
 * **Goal-Driven Execution:** Upfront verification criteria, automated tests, and rigorous diff review.
 
-### 2. Multi-Repo Context Engineering & Autonomy
+### 2. Multi-Repo Context Engineering & Autonomy (`rules/behavioral.md`)
 * Guidelines tailored for Repo Nexus workspaces respecting member repository autonomy and physical repository boundaries.
 
-### 3. Complete Karpathy LLM Wiki Architecture
+### 3. Complete Karpathy LLM Wiki Architecture (`instructions/wiki-architecture.md`)
 * **`/raw/` Intake Directory:** Append-only directory where unmodified source material (articles, transcripts, docs, meeting notes) is deposited. Includes `.gitkeep`.
 * **`/wiki/` Curated Knowledge Base:** Interlinked atomic markdown pages, each with typed frontmatter relations (`sources`, `related`, `extends`, `contradicts`, `mentioned_in`).
 * **`/wiki/index.md` Navigation Index:** Master categorized catalog organizing atomic concepts, architecture decisions, and cross-project knowledge.
@@ -37,7 +37,7 @@ Reference specification: [setup-karpathy-wiki.md](https://github.com/nu-nenoi/ai
 When an AI agent or developer sets up the Karpathy LLM Wiki in a repository or workspace, consult the Step 0 configuration questions:
 
 1. **[Q1] Which AI agent instruction file should the wiki rules be written to?**
-   - In a **Repo Nexus workspace**: Instructions are maintained in separate instructions files (`.rnex/instructions/karpathy-llm.md` and `.rnex/rules/KARPATHY_RULES.md`). Agents read `rnex.yaml` to detect enabled plugins and read their dedicated instructions files automatically.
+   - In a **Repo Nexus workspace**: Instructions are scoped under `.rnex/plugins/karpathy-llm/` (`rules/behavioral.md` and `instructions/wiki-architecture.md`). Agents read `rnex.yaml` to detect enabled plugins and route context automatically.
    - In a **standalone setup** (outside Repo Nexus):
      - `AGENTS.md` (universal, works across most harnesses)
      - `CLAUDE.md` (Claude Code / Anthropic)
@@ -82,9 +82,9 @@ my-workspace/
 │   └── plugins/
 │       └── karpathy-llm/
 │           ├── instructions/
-│           │   └── karpathy-llm.md  # Dedicated plugin instructions
+│           │   └── wiki-architecture.md# LLM Wiki architecture & relation schema
 │           ├── rules/
-│           │   └── KARPATHY_RULES.md# Cardinal principles & wiki rules
+│           │   └── behavioral.md    # Cardinal principles & context engineering
 │           ├── workflows/
 │           │   ├── wiki-ingest.md   # 8-step decomposition & ingestion workflow
 │           │   └── wiki-lint.md     # 10-step graph validation & maintenance workflow
@@ -107,7 +107,7 @@ rnex plugin enable karpathy-llm
 This command:
 1. Adds `karpathy-llm` to `plugins:` in `rnex.yaml`.
 2. Copies initial templates (`wiki/index.md`, `wiki/_log.md`, `wiki/hot.md`, `raw/.gitkeep`, `.rnex/templates/wiki-page.template.md`, `.rnex/templates/LLM_WIKI.sample.md`).
-3. Links `KARPATHY_RULES.md` and workflows into `.rnex/rules/` and `.rnex/workflows/`.
+3. Scopes `rules/`, `instructions/`, and `workflows/` into `.rnex/plugins/karpathy-llm/`.
 4. Syncs scope links and AI context files across all registered member repositories via `rnex fix`.
 
 ### Option 2: Declarative in `rnex.yaml`

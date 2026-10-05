@@ -213,7 +213,7 @@ rnex plugin disable karpathy-llm
 
 ### Built-in Plugin: `karpathy-llm`
 The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns, context engineering principles, and the autonomous **Karpathy LLM Wiki** architecture:
-* **The 4 Cardinal Agent Rules** (`.rnex/plugins/karpathy-llm/rules/KARPATHY_RULES.md`):
+* **The 4 Cardinal Agent Rules** (`.rnex/plugins/karpathy-llm/rules/behavioral.md`):
   1. *Think Before Coding:* Formulate explicit assumptions, boundary checks, and trade-offs before writing code.
   2. *Simplicity First:* Minimal abstractions, readable implementations, zero speculative boilerplate.
   3. *Surgical Changes:* Minimal blast radius, preserved comments/docstrings, and tight diffs.

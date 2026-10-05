@@ -1,8 +1,8 @@
-# Karpathy LLM Agent Guidelines & Behavioral Principles
+# Karpathy Coding Agent Behavioral Principles
 
 > "The delicate art and science of context engineering: filling the context window with just the right information for the next step." — Andrej Karpathy
 
-These guidelines provide standing operational instructions for AI coding assistants (Cursor, Claude Code, GitHub Copilot, Antigravity, Windsurf) working within multi-repository environments and managing Karpathy LLM Wiki knowledge bases.
+These rules define standing behavioral principles for AI coding assistants (Cursor, Claude Code, GitHub Copilot, Antigravity, Windsurf) working in this workspace.
 
 ---
 
@@ -45,38 +45,3 @@ In a Repo Nexus workspace, independent repositories are organized into `./repos/
 3. **Context Economy:**
    - Do not redundantly read entire files or directory trees when targeted symbol lookups or line ranges suffice.
    - Rely on active workspace context, indexing, and compiled documentation rather than re-scanning raw files repeatedly.
-
----
-
-## 3. Karpathy Wiki Rules
-
-When working in a repository with an active Karpathy LLM Wiki (`/wiki/` and `/raw/` directories):
-
-- **Intake**: All source material (articles, transcripts, docs, notes) goes to `/raw/` unmodified. Never write directly to `/wiki/` without ingesting.
-- **Orientation**: Before answering domain questions, read `/wiki/index.md` to find relevant pages, then read only those pages. If `hot.md` exists, read it first as a quick-orient step.
-- **Ingestion**: When files appear in `/raw/`, run the `wiki-ingest` workflow (`.rnex/workflows/wiki-ingest.md`). One source document typically produces many atomic pages (commonly 5–25 pages) — do not collapse a source into a single file.
-- **Maintenance**: Run the `wiki-lint` workflow (`.rnex/workflows/wiki-lint.md`) to validate paths, update `mentioned_in`, and preserve graph integrity.
-
----
-
-## 4. Typed Frontmatter Relation Schema
-
-Every page in `/wiki/` must maintain typed frontmatter relations:
-
-```yaml
----
-title: ""
-tags: []
-last_updated: YYYY-MM-DD
-# Typed relation fields — paths relative to /wiki/
-sources: []          # /raw/ files this page was derived from
-related: []          # thematically related wiki pages
-extends: []          # pages this one builds upon or specialises
-contradicts: []      # pages with conflicting information
-mentioned_in: []     # pages that link to this one (maintained by lint)
----
-```
-
-**Body:** concise summary, key facts or insights, and inline standard Markdown links (`[Label](./path.md)`) where contextually useful in prose.
-
-The relation graph lives in frontmatter, not in prose links. Agents traverse the graph by reading frontmatter fields, not by scanning body text.

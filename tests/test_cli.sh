@@ -185,8 +185,8 @@ run_test "Plugin enable command scopes assets to .rnex/plugins/karpathy-llm/"
 "$TEST_WORKSPACE/rnex" plugin enable karpathy-llm >/dev/null
 grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" || { fail "karpathy-llm not in rnex.yaml"; exit 1; }
 [ -d "$TEST_WORKSPACE/.rnex/plugins/karpathy-llm" ] || { fail "Scoped plugin dir missing in workspace"; exit 1; }
-[ -f "$TEST_WORKSPACE/.rnex/plugins/karpathy-llm/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md missing in scoped plugin dir"; exit 1; }
-[ -f "$TEST_WORKSPACE/.rnex/plugins/karpathy-llm/instructions/karpathy-llm.md" ] || { fail "karpathy-llm.md missing in scoped plugin dir"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/plugins/karpathy-llm/rules/behavioral.md" ] || { fail "behavioral.md missing in scoped plugin dir"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/plugins/karpathy-llm/instructions/wiki-architecture.md" ] || { fail "wiki-architecture.md missing in scoped plugin dir"; exit 1; }
 [ -d "$TEST_WORKSPACE/repos/test-app/.rnex/plugins/karpathy-llm" ] || { fail "Scoped plugin dir missing in member repo"; exit 1; }
 [ -f "$TEST_WORKSPACE/wiki/index.md" ] || { fail "wiki/index.md not initialized in workspace"; exit 1; }
 grep -q "title: Wiki Index" "$TEST_WORKSPACE/wiki/index.md" || { fail "wiki/index.md missing title: Wiki Index"; exit 1; }
