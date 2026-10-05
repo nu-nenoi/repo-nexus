@@ -1,27 +1,25 @@
 # ==============================================================================
 # rnex.yaml — Repo Nexus Workspace Configuration (Full Example)
 # ==============================================================================
-# This file is the central team manifest for a Repo Nexus workspace (committed to git).
+# This file is the central team manifest for a Repo Nexus workspace (committed to Git).
 #
 # TWO-LEVEL CONFIGURATION:
-#   1. Repo Config (rnex.yaml): Shared across team, tracks member repos, plugins.
-#   2. Local Config (.local.rnex.yaml): Machine-specific (gitignored), overrides/provides
-#      local member repo paths and developer-specific plugin settings.
+#   1. Repo Config (rnex.yaml): Shared across team, tracks member repos, URLs, plugins.
+#   2. Local Config (.local.rnex.yaml): Machine-specific (gitignored, highest priority),
+#      overrides enable/disable states, URLs, or local developer settings.
 #
 # Place it in your workspace root directory and run `rnex fix` to apply.
 #
 # For more information: https://github.com/nu-nenoi/repo-nexus
 
 # ------------------------------------------------------------------------------
-# repos_dir — Directory for repository symlinks
+# repos_dir — Directory for member repository clones
 # ------------------------------------------------------------------------------
-# Relative paths are resolved relative to this config file's location.
-# Default: ./repos
+# Default: ./repos (ignored by Git in the workspace .gitignore)
 #
 # Examples:
 #   repos_dir: ./repos              # relative (recommended)
-#   repos_dir: ./workspace/repos    # nested relative path
-#   repos_dir: /opt/dev/repos       # absolute path
+#   repos_dir: ./custom-repos       # custom relative path
 
 repos_dir: ./repos
 
@@ -29,7 +27,7 @@ repos_dir: ./repos
 # plugins — Workspace plugins and AI instruction packs
 # ------------------------------------------------------------------------------
 # Plugins extend your workspace with curated AI guidelines, context rules,
-# and scaffolding templates within the `.rnex/` workspace root directory.
+# and scaffolding templates scoped within `.rnex/plugins/<plugin-name>/`.
 #
 # Manage plugins with:
 #   rnex plugin list              # View available and active plugins
@@ -38,9 +36,7 @@ repos_dir: ./repos
 #
 # Built-in plugins:
 #   karpathy-llm   — Andrej Karpathy's agent behavioral principles,
-#                    multi-repo context engineering, and LLM Wiki pattern
-#
-# Local / custom plugins can also be placed in .rnex/plugins/<name>/
+#                    context engineering guidelines, and LLM Wiki architecture
 
 plugins:
   # karpathy-llm: {}
@@ -49,43 +45,39 @@ plugins:
 # repos — Member repositories managed by Repo Nexus
 # ------------------------------------------------------------------------------
 # Each repo has:
-#   path:     Absolute or relative path to the repository on disk.
-#             Relative paths are resolved relative to this config file.
-#   scope:    "visible" (default) creates a symlink in repos_dir.
-#             "hidden" removes the symlink but keeps the registration.
-#   rnex_dir: true (default) creates an .rnex/ directory inside the member repo
+#   url:      Git repository URL (SSH or HTTPS).
+#   enabled:  true (default) keeps the repo active in workspace.
+#             false disables the repo (skipped by rnex clone, rnex exec, etc.).
+#             Can be overridden locally in .local.rnex.yaml.
+#   rnex_dir: true (default) creates an isolated .rnex/ directory inside the member repo
 #             for storing rnex-related documents, rules, workflows, and scripts.
-#             Set to false to disable and leave the repository completely untouched.
+#             Set to false to leave the member repository completely untouched.
 #
-# Examples with absolute paths:
-#   backend-api:
-#     path: /Users/dev/projects/backend-api
-#     scope: visible
-#     rnex_dir: true
+# Examples:
+#   backend:
+#     url: git@github.com:myorg/backend-api.git
+#     enabled: true        # default
+#     rnex_dir: true       # default
 #
-# Examples with relative paths:
 #   frontend:
-#     path: ../frontend-app
-#     scope: visible
+#     url: https://github.com/myorg/web-app.git
+#     enabled: true
 #     rnex_dir: true
 #
-#   shared-lib:
-#     path: ../../libs/shared
-#     scope: hidden
+#   analytics:
+#     url: git@github.com:myorg/analytics.git
+#     enabled: false       # disabled: skipped by clone & exec
 #     rnex_dir: false
 
 repos:
-  # backend-api:
-  #   path: /Users/dev/projects/backend-api
-  #   scope: visible
+  # backend:
+  #   url: git@github.com:myorg/backend-api.git
   #   rnex_dir: true
   #
-  # frontend-app:
-  #   path: ../frontend-app
-  #   scope: visible
+  # frontend:
+  #   url: https://github.com/myorg/web-app.git
   #   rnex_dir: true
   #
   # analytics:
-  #   path: /Users/dev/projects/analytics-service
-  #   scope: hidden
-  #   rnex_dir: false
+  #   url: git@github.com:myorg/analytics.git
+  #   enabled: false

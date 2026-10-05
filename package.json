@@ -1,7 +1,7 @@
 {
   "name": "repo-nexus",
-  "version": "0.3.5",
-  "description": "Lightweight, zero-dependency companion tool for multi-repo workspaces and shared AI context via symlinks (no git submodules)",
+  "version": "0.4.0",
+  "description": "Lightweight, zero-dependency Virtual Meta-Repo companion for multi-repo workspaces and shared AI context (no git submodules)",
   "bin": {
     "repo-nexus": "rnex",
     "rnex": "rnex"

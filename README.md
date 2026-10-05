@@ -4,16 +4,18 @@
 [![npm version](https://img.shields.io/npm/v/repo-nexus.svg)](https://www.npmjs.com/package/repo-nexus)
 [![License: MIT](https://img.shields.io/github/license/nu-nenoi/repo-nexus)](LICENSE)
 [![POSIX Compatible](https://img.shields.io/badge/POSIX-compatible-success)](#)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey)](#)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](#)
 [![FAQ](https://img.shields.io/badge/docs-FAQ-blue.svg)](docs/FAQ.md)
 
-A **simple, lightweight companion tool** for multi-repo workflows. It links multiple independent repositories and shares universal AI instructions (like `AGENTS.md`) using standard Unix symlinks **without Git submodules, monorepo migrations, or complex setup**.
+A **simple, lightweight Virtual Meta-Repo companion** for multi-repo workspaces and shared AI context. It organizes independent repositories into a unified workspace and shares lean routing instructions (`AGENTS.md`) **without Git submodules, monorepo migrations, or symlink fragility**.
 
-- **No Git Submodules or Nested Git Friction**: Keep your repositories completely independent. No detached HEADs, no `.gitmodules`, and no merge conflicts between repos.
-- **A Lean Companion, Not a Workspace Replacer**: It does not replace your editor, terminal, build tools, or package manager. It is a tiny (~20 KB) helper that seamlessly complements your existing workflow.
-- **Unified Workspace for AI Coding Assistants**: Open one folder to give Cursor, Claude Code, GitHub Copilot, or Antigravity complete cross-repo visibility.
-- **Single Source of Truth for AI Guidelines**: Share and sync `AGENTS.md`, Copilot instructions (`.github/copilot-instructions.md`), Cursor rules (`.cursorrules`), Claude instructions (`CLAUDE.md`), and custom prompts across all projects.
-- **Zero Dependencies**: Pure POSIX shell CLI (`rnex`). Works out of the box with zero external runtimes required.
+- **No Git Submodules or Nested Git Collisions**: Member repositories are physically cloned into `./repos/` and strictly ignored by workspace Git. Each repository maintains its own standalone history, remotes, branches, and commits with zero submodule friction.
+- **Unified Workspace for AI Coding Assistants**: Open one root folder to give Cursor, Claude Code, GitHub Copilot, Codex, or Antigravity complete cross-service visibility.
+- **Two-Level Configuration as Source of Truth**: Shared team manifest in `rnex.yaml` with machine-specific overrides in `.local.rnex.yaml` (highest priority).
+- **1-Command Team Onboarding**: Teammates clone the meta-repo and run `rnex clone` to clone and configure all member repos in seconds.
+- **Cross-Repo Batch Operations**: Run arbitrary commands across all active repositories with `rnex exec <command>`.
+- **Scoped Plugins & Context Packs**: Modular plugin packages scoped under `.rnex/plugins/<plugin-name>/` with support for domain directories (e.g. `raw/` and `wiki/` for `karpathy-llm`).
+- **Zero Dependencies**: Pure POSIX shell CLI (`rnex`). Works out of the box across macOS, Linux, and Windows (WSL/Git Bash).
 
 > 💡 **Have questions?** Check out the **[Frequently Asked Questions (FAQ)](docs/FAQ.md)** for architecture deep dives, Git workflows, and AI context strategies.
 
@@ -22,16 +24,15 @@ A **simple, lightweight companion tool** for multi-repo workflows. It links mult
 ## Table of Contents
 
 - [What Repo Nexus Is (and What It Isn't)](#what-repo-nexus-is-and-what-it-isnt)
-- [How It Works: The Two Symlink Flows](#how-it-works-the-two-symlink-flows)
+- [How It Works: Virtual Meta-Repo Architecture](#how-it-works-virtual-meta-repo-architecture)
 - [Key Principles](#key-principles)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Everyday Usage](#everyday-usage)
-- [Plugins & AI Context Packs](#plugins--ai-context-packs)
-- [Workspace Configuration (`rnex.yaml`)](#workspace-configuration-rnexyaml)
+- [Plugins & Scoped Context Packs](#plugins--scoped-context-packs)
+- [Two-Level Configuration (`rnex.yaml` & `.local.rnex.yaml`)](#two-level-configuration)
 - [CLI Command Reference](#cli-command-reference)
-- [Operating on External Workspaces via `--config`](#operating-on-external-workspaces-via---config)
-- [Supported AI Configuration Files](#supported-ai-configuration-files)
+- [Shell Auto-Completion](#shell-auto-completion)
 - [Project Structure](#project-structure)
 - [Running Tests](#running-tests)
 - [Frequently Asked Questions (FAQ)](docs/FAQ.md)
@@ -43,30 +44,36 @@ A **simple, lightweight companion tool** for multi-repo workflows. It links mult
 
 | What It Is | What It Isn't |
 | :--- | :--- |
-| **A lightweight companion utility** (~20 KB POSIX script). | **NOT a replacement for your workspace or tools.** It doesn't replace VS Code, Cursor, JetBrains, or your terminal. |
-| **A simple symlink manager** that groups existing repos into one folder for convenience. | **NOT a build tool or monorepo orchestrator.** It doesn't manage builds or replace tools like Nx, Turborepo, Cargo, or Gradle. |
+| **A lightweight companion utility** (~25 KB POSIX script). | **NOT a replacement for your workspace or tools.** It doesn't replace VS Code, Cursor, JetBrains, or your terminal. |
+| **A Virtual Meta-Repo orchestrator** managing member clones in `./repos/`. | **NOT a build tool or monorepo orchestrator.** It doesn't replace tools like Nx, Turborepo, Cargo, or Gradle. |
 | **Zero Git friction.** Repositories remain normal, autonomous Git repos. | **NOT Git submodules or subtrees.** No `.gitmodules` files, no detached HEADs, no commit coordination lock-in. |
-| **Non-invasive.** If you delete the workspace, your repos remain completely untouched. | **NOT a proprietary platform.** No background daemons, no database, no vendor lock-in. |
+| **Strictly encapsulated.** Internal rnex assets live exclusively in `.rnex/`. | **NOT invasive.** Member repositories remain clean; workspace-related context is isolated to `repos/<name>/.rnex/`. |
 
 ---
 
-## How It Works: Zero-Touch Multi-Repo Architecture
+## How It Works: Virtual Meta-Repo Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Repo Nexus Workspace Root                                  │
+│  Repo Nexus Workspace Root (Virtual Meta-Repo)              │
 │                                                             │
 │  my-workspace/                                              │
-│    repos/                                                   │
-│      backend/   ──(symlink)──>  ~/code/backend-api          │
-│      frontend/  ──(symlink)──>  ~/code/web-app              │
-│    AGENTS.md         (root universal AI instructions)       │
-│    .rnex/            (plugins, rules, and workflows)        │
-│    rnex.yaml         (manifest: repos_dir, plugins, repos)  │
+│    .local.rnex.yaml  (Highest Priority: local overrides)    │
+│    rnex.yaml         (Team Manifest: repos & plugins)       │
+│    AGENTS.md         (Routing-only AI agent instructions)   │
+│    .gitignore        (Strictly ignores repos/ & local yaml) │
+│    .rnex/            (Strictly encapsulated internal state) │
+│      plugins/        (Scoped plugin directories)            │
+│        karpathy-llm/ (Isolated rules, workflows, templates) │
+│    repos/            (Autonomous Physical Git Clones)       │
+│      backend/        (Own .git, branches, PRs)              │
+│        .rnex/        (Quarantined member-specific context)  │
+│      frontend/       (Own .git, branches, PRs)              │
+│        .rnex/        (Quarantined member-specific context)  │
 │                                                             │
-│  • Agent opens workspace → sees all repos in one tree.      │
-│  • Edits through symlinks modify original files directly.   │
-│  • Member repositories remain 100% clean and untouched.     │
+│  • Agent opens workspace → reads config first → sees stack. │
+│  • Repos are 100% normal Git clones (zero submodules).      │
+│  • Work across repos seamlessly using rnex exec.            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -74,20 +81,20 @@ A **simple, lightweight companion tool** for multi-repo workflows. It links mult
 
 ## Key Principles
 
-1. **No Git Submodules (Complete Repository Autonomy)**:
-   Member repositories are never converted into Git submodules or subtrees. Each repository keeps its own standalone Git history, remotes, branches, and commits. `rnex` simply links them on your local filesystem.
+1. **Configuration as Single Source of Truth**:
+   Every agent workflow and command starts by reading the configuration files. `.local.rnex.yaml` takes **highest priority** over `rnex.yaml`.
 
-2. **Symlink Write-Through**:
-   Symlinks are transparent pointers resolved by your OS. When you or an AI agent edit `repos/backend/src/index.ts`, the OS resolves the link and writes directly to the source repository on disk.
+2. **No Git Submodules (Complete Repository Autonomy)**:
+   Member repositories are cloned directly into `./repos/<name>`. The root workspace `.gitignore` ignores `repos/`, ensuring the workspace repository never tracks or interferes with member Git histories, remotes, branches, or commits.
 
-3. **Clean Member Repositories & Dedicated `.rnex/` Scope**:
-   Member repository roots remain clean and unpolluted. By default, `rnex` creates a dedicated `.rnex/` directory in each member repo (`repos/<name>/.rnex/`) to isolate all Repo Nexus documents, instructions, rules, workflows, and scripts. This setting is configurable per repository (`rnex_dir: true|false`) and can be disabled to leave a member repo 100% untouched.
+3. **Enabled by Default with Two-Level Merging**:
+   Member repositories are enabled by default. Developers can selectively disable specific repositories locally in `.local.rnex.yaml` (`enabled: false`) without mutating the shared `rnex.yaml`. Disabled repositories are skipped by `clone` and `exec`.
 
-4. **Multi-Repo AI Context Discovery**:
-   Root `AGENTS.md` and `.rnex/` govern workspace-wide AI assistant behavior, while AI tools operating at the workspace level inspect `repos/<name>/.rnex/` for member-specific instructions without cluttering root codebases.
+4. **Routing-Only Top-Level AI Instructions**:
+   `AGENTS.md` (and related top-level instruction files) contains no inlined plugin rules or tool boilerplate. It acts solely as a lean navigation router directing AI agents to configuration files, scoped plugins, and member `.rnex/` contexts.
 
-5. **Dynamic Workspace Scope**:
-   Easily show or hide member repos from the active workspace without modifying disk contents.
+5. **Strict File Encapsulation**:
+   All `rnex`-managed internal files live exclusively in `.rnex/`. Member repositories isolate Repo Nexus assets in `repos/<name>/.rnex/`.
 
 ---
 
@@ -113,22 +120,12 @@ wget -qO- https://raw.githubusercontent.com/nu-nenoi/repo-nexus/main/scripts/ins
 
 ### Option 3: Native Installer (Clone & Install)
 
-Clone the repository and run the built-in installer:
-
 ```bash
 git clone https://github.com/nu-nenoi/repo-nexus.git
 cd repo-nexus
 ./rnex install
 ```
-*(Installs `rnex` and `repo-nexus` symlinks into `~/.local/bin`, or pass a custom directory like `./rnex install /usr/local/bin`)*
-
-### Option 4: Shell Alias
-
-Add to your `~/.zshrc` or `~/.bashrc`:
-```bash
-alias rnex="/path/to/repo-nexus/rnex"
-alias repo-nexus="/path/to/repo-nexus/rnex"
-```
+*(Installs `rnex` and `repo-nexus` into `~/.local/bin`, or pass a custom directory like `./rnex install /usr/local/bin`)*
 
 ---
 
@@ -139,55 +136,66 @@ alias repo-nexus="/path/to/repo-nexus/rnex"
 mkdir my-workspace && cd my-workspace
 rnex init
 
-# 2. Register repositories
-rnex add backend ~/code/backend-api
-rnex add frontend ../web-app          # relative paths work too
+# 2. Register and clone repositories
+rnex add backend git@github.com:myorg/backend-api.git
+rnex add frontend https://github.com/myorg/web-app.git
 
 # 3. Check workspace health
 rnex status
+
+# 4. Run a batch command across all member repos
+rnex exec git status -s
 ```
 
-During `rnex init`, the CLI creates `rnex.yaml` if none exists for the directory, and merges Repo Nexus workspace instructions with any existing AI instructions (such as `AGENTS.md`, `CLAUDE.md`, `.cursorrules`).
+When a teammate clones your workspace, they simply run:
+```bash
+rnex clone
+```
+All declared member repositories are cloned and wired up automatically!
 
 ---
 
 ## Everyday Usage
 
 ```bash
-# Register a repository (links into scope & initializes member .rnex/ directory)
-rnex add my-app ~/code/my-app
+# Register and clone a repository
+rnex add backend git@github.com:myorg/backend.git
 
-# Register a repository with .rnex/ disabled (100% untouched)
-rnex add --no-rnex-dir my-app ~/code/my-app
+# Register a repository in local config only (.local.rnex.yaml)
+rnex add --local analytics git@github.com:myorg/analytics.git
 
-# Inspect workspace health, active repos, and .rnex status
-rnex status
+# Clone all missing member repositories
+rnex clone
 
-# List all registered repositories with scope and .rnex status
+# Run a command across all active repositories
+rnex exec git status -s
+rnex exec npm test
+
+# Disable a repository (skipped by clone, exec, and agents)
+rnex disable analytics
+rnex disable --local analytics    # disable locally without modifying team rnex.yaml
+
+# Re-enable a repository
+rnex enable analytics
+
+# List all registered repositories with clone status and active branch
 rnex list
 
-# Toggle .rnex directory integration for a member repo
-rnex rnex-dir disable my-app
-rnex rnex-dir enable my-app
+# Inspect workspace health, active repos, and plugin status
+rnex status
 
-# Temporarily hide a repo from active indexing/agent scope
-rnex hide my-app
-
-# Restore a hidden repo back to active scope
-rnex show my-app
-
-# Reconcile and fix all scope links, plugins, and member .rnex/ directories (alias: sync)
+# Reconcile workspace, plugins, and member .rnex/ directories (alias: sync)
 rnex fix
 
-# Unregister a repository (removes scope link & member .rnex assets)
-rnex remove my-app
+# Unregister and delete a repository
+rnex remove analytics
 ```
 
 ---
 
-## Plugins & AI Context Packs
+## Plugins & Scoped Context Packs
 
-Repo Nexus features a zero-dependency plugin architecture. Plugins package curated AI instructions, agent behavioral rules, and architecture templates that are automatically synchronized into member repositories via symlinks.
+Repo Nexus features a scoped plugin architecture. Plugins package curated AI instructions, agent behavioral rules, and architecture templates that are synchronized into dedicated directories under `.rnex/plugins/<plugin-name>/`.
 
 ```bash
 # List available and active plugins
@@ -196,74 +204,69 @@ rnex plugin list
 # Inspect plugin details and provided files
 rnex plugin info karpathy-llm
 
-# Enable a plugin across your workspace
+# Enable a plugin in your workspace
 rnex plugin enable karpathy-llm
 
-# Disable a plugin and clean up injected files
+# Disable a plugin and clean up scoped assets
 rnex plugin disable karpathy-llm
 ```
 
 ### Built-in Plugin: `karpathy-llm`
-The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns, context engineering principles, and the autonomous **Karpathy LLM Wiki** architecture (based on [`setup-karpathy-wiki.md`](https://github.com/nu-nenoi/ai-toolkit/blob/main/prompts/setup-karpathy-wiki.md), available locally in `toolkit/prompts/setup-karpathy-wiki.md`):
-* **Step 0 — Configuration Interview:** Guides setup decisions including target agent instruction file (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/wiki.mdc`, etc.), wiki purpose (codebase, second brain, research, content archive), organization layout (flat vs structured), and automation enablement.
-* **The 4 Cardinal Agent Rules** (`.rnex/rules/KARPATHY_RULES.md`):
+The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns, context engineering principles, and the autonomous **Karpathy LLM Wiki** architecture:
+* **The 4 Cardinal Agent Rules** (`.rnex/plugins/karpathy-llm/rules/KARPATHY_RULES.md`):
   1. *Think Before Coding:* Formulate explicit assumptions, boundary checks, and trade-offs before writing code.
   2. *Simplicity First:* Minimal abstractions, readable implementations, zero speculative boilerplate.
   3. *Surgical Changes:* Minimal blast radius, preserved comments/docstrings, and tight diffs.
   4. *Goal-Driven Execution:* Upfront verification criteria, automated tests, and diff inspection.
-* **Autonomous Karpathy LLM Wiki Knowledge Architecture:**
+* **Autonomous Karpathy LLM Wiki Architecture:**
   * **Intake (`/raw/`):** Append-only intake for unmodified source documents.
-  * **Curated Knowledge Base (`/wiki/`):** Interlinked atomic markdown pages with typed YAML frontmatter relations (`sources`, `related`, `extends`, `contradicts`, `mentioned_in`).
+  * **Curated Knowledge Base (`/wiki/`):** Interlinked atomic markdown pages with typed YAML frontmatter relations.
   * **Navigation Index (`/wiki/index.md`):** Master categorized navigation index.
   * **Rolling Context (`/wiki/hot.md`):** ~500-word quick-orient context cache for AI agents.
   * **Operation Log (`/wiki/_log.md`):** Append-only audit trail of ingest and lint operations.
-* **Standardized Workflows (`.rnex/workflows/`):**
-  * `wiki-ingest.md`: 8-step protocol decomposing raw source documents into 5–25 atomic wiki pages.
-  * `wiki-lint.md`: 10-step protocol validating paths, recomputing `mentioned_in`, removing orphans, resolving contradictions, identifying gaps, suggesting source candidates, and rebuilding indexes.
+* **Standardized Workflows (`.rnex/plugins/karpathy-llm/workflows/`):**
+  * `wiki-ingest.md`: 8-step protocol decomposing raw source documents into atomic wiki pages.
+  * `wiki-lint.md`: 10-step protocol validating paths, relations, contradictions, and indexing.
 
 ---
 
 ## Two-Level Configuration
 
-Repo Nexus supports a two-level configuration model:
-1. **Repo Config (`rnex.yaml`):** Shared manifest committed to git. Tracks member repo names, default settings, and active plugins.
-2. **Local Config (`.local.rnex.yaml`):** Machine-specific file ignored in `.gitignore`. Overrides or provides member repo paths on each developer's workstation.
+1. **Repo Config (`rnex.yaml`):** Shared manifest committed to Git. Declares member repos, Git URLs, default enabled states, and active plugins.
+2. **Local Config (`.local.rnex.yaml`):** Machine-specific file ignored in `.gitignore`. Takes **highest priority** and overrides repo settings.
 
 ### Repo Configuration (`rnex.yaml`)
 
 ```yaml
-# Directory for repository symlinks (relative or absolute)
+# Directory for member repository clones
 repos_dir: ./repos
 
 # Workspace plugins
 plugins:
   karpathy-llm: {}
 
-# Member repositories
+# Member repositories (enabled by default)
 repos:
   backend:
-    scope: visible
+    url: git@github.com:myorg/backend-api.git
     rnex_dir: true      # default: true (creates repos/backend/.rnex/)
   frontend:
-    path: ../web-app    # optional default relative path
-    scope: visible
+    url: https://github.com/myorg/web-app.git
     rnex_dir: true
   analytics:
-    path: /Users/dev/code/analytics
-    scope: hidden
-    rnex_dir: false     # disabled: leaves analytics repo 100% untouched
+    url: git@github.com:myorg/analytics.git
+    enabled: false       # disabled: skipped by clone and exec
+    rnex_dir: false
 ```
 
 ### Local Configuration (`.local.rnex.yaml`)
 
 ```yaml
+# Highest priority local overrides
 repos:
-  backend:
-    path: /Users/alice/projects/backend-api
+  analytics:
+    enabled: true        # locally enable analytics on this workstation
 ```
-
-> See [`docs/rnex.example.yaml`](docs/rnex.example.yaml) for a comprehensive example with all options.
-> For common questions and architecture details, see the [Frequently Asked Questions (FAQ)](docs/FAQ.md).
 
 ---
 
@@ -274,37 +277,49 @@ repos:
 |:---|:---|
 | `-c, --config <file>` | Explicit path to `rnex.yaml` (executes in that workspace directory) |
 | `-h, --help` | Display command help and usage instructions |
-| `-v, --version` | Display version |
+| `-v, --version` | Display version (v0.4.0) |
 
 ### Commands
 | Command | Description |
 |:---|:---|
-| `rnex init [dir]` | Initialize a new workspace in current (or target) directory |
+| `rnex init [-y] [dir]` | Initialize a new Virtual Meta-Repo workspace in current (or target) directory |
 | `rnex install [dir]` | Install `rnex` & `repo-nexus` globally into `~/.local/bin` (or custom dir) |
-| `rnex add [--no-rnex-dir] <name> <path>` | Register repo, create scope link, and configure member `.rnex/` |
-| `rnex remove <name>` | Unregister repo, unlink scope, and clean up member `.rnex/` assets |
-| `rnex list` | List all registered repos, visibility scopes, and `.rnex` status |
-| `rnex status` | Display status of workspace AI context, active plugins, and member repos |
+| `rnex add [--local] [--disabled] <name> <git-url>` | Register and clone repo into `./repos/<name>` |
+| `rnex clone` | Clone all missing enabled repositories declared in `rnex.yaml` |
+| `rnex exec <command...>` | Execute a shell command across all active member repositories |
+| `rnex remove <name>` | Unregister repo and delete `./repos/<name>` |
+| `rnex enable [--local] <name>` | Enable a repository in active workspace |
+| `rnex disable [--local] <name>` | Disable a repository from active workspace |
+| `rnex list` | List all member repositories with clone state, active branch, and `.rnex` status |
+| `rnex status` | Inspect workspace health, active repos, config loaded, and plugins |
 | `rnex rnex-dir <enable\|disable> <name>` | Toggle `.rnex/` directory integration for a member repository |
-| `rnex show <name>` | Make a hidden repo visible in workspace |
-| `rnex hide <name>` | Hide a repo from active workspace indexing |
-| `rnex fix` (or `sync`) | Reconcile and fix all scope symlinks, plugins, and member `.rnex/` directories |
+| `rnex fix` (or `sync`) | Reconcile workspace repositories, plugins, and member `.rnex/` directories |
+| `rnex plugin <list\|info\|enable\|disable>` | Manage workspace plugins |
+| `rnex completion <bash\|zsh\|fish>` | Generate shell auto-completion script |
 
 ---
 
-## Operating on External Workspaces via `--config`
+## Shell Auto-Completion
 
-Run `rnex` commands targeting any workspace without changing directories:
+Generate auto-completions for your shell:
 
+### Zsh
 ```bash
-# Inspect status of a workspace stored elsewhere
-rnex -c /path/to/my-workspace/rnex.yaml status
-
-# Add a repository to an external workspace
-rnex --config /path/to/my-workspace/rnex.yaml add api-service ~/code/api
+# Add to ~/.zshrc
+source <(rnex completion zsh)
 ```
 
-Any command executed with an explicit config file operates within the directory where that config lives.
+### Bash
+```bash
+# Add to ~/.bashrc
+source <(rnex completion bash)
+```
+
+### Fish
+```bash
+# Add to ~/.config/fish/config.fish
+rnex completion fish | source
+```
 
 ---
 
@@ -312,21 +327,20 @@ Any command executed with an explicit config file operates within the directory 
 
 ```
 repo-nexus/
-├── rnex.yaml                       # Workspace configuration
+├── package.json                    # npm package manifest (single source of truth for v0.4.0)
 ├── rnex                            # CLI executable (POSIX shell)
-├── AGENTS.md                       # Universal AI coding guidelines
+├── AGENTS.md                       # Routing-only universal AI instructions
 ├── docs/
-│   ├── AGENTS.sample.md            # Template for AGENTS.md
+│   ├── AGENTS.sample.md            # Template for routing-only AGENTS.md
 │   ├── FAQ.md                      # Frequently Asked Questions
 │   └── rnex.example.yaml           # Full config reference with examples
 ├── .github/
-│   ├── workflows/ci.yml            # GitHub Actions CI workflow
-│   └── ISSUE_TEMPLATE/             # Bug report and feature request templates
+│   └── workflows/ci.yml            # GitHub Actions CI workflow
 ├── tests/
-│   └── test_cli.sh                 # Automated CLI test suite (20 tests)
-├── toolkit/                        # Shared prompts, scripts, templates
-├── package.json                    # npm package manifest
-├── LICENSE                         # MIT License
+│   └── test_cli.sh                 # Automated CLI test suite
+├── toolkit/                        # Shared plugins and templates
+│   └── plugins/
+│       └── karpathy-llm/           # Scoped Karpathy LLM plugin
 └── README.md
 ```
 

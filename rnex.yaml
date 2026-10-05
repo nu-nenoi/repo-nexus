@@ -1,8 +1,10 @@
 # Repo Nexus workspace configuration
 # See docs/rnex.example.yaml for a comprehensive example with all options.
 
-# Directory for repository symlinks (relative to this file or absolute)
+# Directory for member repository clones (relative to this file or absolute)
 repos_dir: ./repos
 
 # Member repositories managed by Repo Nexus
 repos:
+
+plugins:
