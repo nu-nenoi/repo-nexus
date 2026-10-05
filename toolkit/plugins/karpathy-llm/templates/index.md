@@ -1,7 +1,6 @@
 ---
 title: Wiki Index
 last_updated: YYYY-MM-DD
-lint_trigger: enabled   # set to "disabled" to pause all wiki automation
 ---
 
 # Wiki Index

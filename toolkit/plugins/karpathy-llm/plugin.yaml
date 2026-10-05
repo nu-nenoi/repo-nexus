@@ -16,4 +16,3 @@ templates:
   - templates/raw.gitkeep: raw/.gitkeep
   - templates/wiki-page.sample.md: .rnex/templates/wiki-page.template.md
   - templates/LLM_WIKI.sample.md: .rnex/templates/LLM_WIKI.sample.md
-  - scripts/wiki-lint-trigger.sh: .rnex/scripts/wiki-lint-trigger.sh

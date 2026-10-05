@@ -40,10 +40,6 @@ Ask ALL of the following questions and wait for answers:
   - Structured — subfolders by category, chosen based on Q2 answer
   - Agent decides — infer structure from the first batch of ingested content
 
-[Q4] Enable wiki automation now?
-  - Yes — set `lint_trigger: enabled` in `/wiki/index.md` frontmatter
-  - No — set `lint_trigger: disabled` (can be changed at any time by editing that field)
-
 ---
 
 ### 1. Directories and Files
@@ -58,27 +54,23 @@ Ask ALL of the following questions and wait for answers:
     - Content archive → `sources/`, `people/`, `tools/`, `concepts/`
     - Codebase → `architecture/`, `decisions/`, `runbooks/`, `people/`
 
-**`/wiki/index.md`** — Master navigation index and wiki control file. Contains:
-  - YAML frontmatter with `lint_trigger: enabled|disabled` — controls whether the autonomous trigger runs. Committed to version control; toggling is a team-visible decision.
+**`/wiki/index.md`** — Master navigation index. Contains:
   - Categorized links to every wiki page. Auto-maintained after every ingest and lint run.
 
 **`/wiki/_log.md`** — Append-only operation log. Every ingest and lint run appends a timestamped entry.
 
 **`/wiki/hot.md`** *(create only for second brain or codebase wiki)* — Rolling ~500-word cache of the most recently relevant context. Lets an agent orient without reading the full wiki.
 
-**`/wiki/.lint_trigger_counter`** — Session counter used by the lint trigger script. Machine-local state. Add to `.gitignore`.
-
 ---
 
 ### 2. Index File Format
 
-`/wiki/index.md` uses its own frontmatter schema (it is the wiki control file, not a regular page):
+`/wiki/index.md` uses its own frontmatter schema (it is the wiki navigation file, not an atomic content page):
 
 ```yaml
 ---
 title: Wiki Index
 last_updated: YYYY-MM-DD
-lint_trigger: enabled   # set to "disabled" to pause all wiki automation
 ---
 ```
 
@@ -122,9 +114,7 @@ In the file chosen in Q1, append:
 - **Intake**: All source material (articles, transcripts, docs, notes) goes to `/raw/` unmodified. Never write directly to `/wiki/` without ingesting.
 - **Orientation**: Before answering domain questions, read `/wiki/index.md` to find relevant pages, then read only those pages. If `hot.md` exists, read it first as a quick-orient step.
 - **Ingestion**: When files appear in `/raw/`, run the `wiki-ingest` workflow. One source document typically produces many atomic pages — do not collapse a source into a single file.
-- **Cadence**: After any session where repository files were created, edited, or deleted, run `scripts/wiki-lint-trigger.sh`. If it outputs `[WIKI MAINTENANCE DUE]`, run the `wiki-lint` workflow before stopping.
-- **No-op sessions**: Do not run the trigger after read-only or purely conversational sessions where no files changed.
-- **Enable/disable**: Wiki automation is controlled by `lint_trigger: enabled|disabled` in `/wiki/index.md` frontmatter. Edit that field to toggle — the change is committed and visible to the whole team.
+- **Maintenance**: Run the `wiki-lint` workflow to validate paths, update `mentioned_in`, and preserve graph integrity.
 ```
 
 ---
@@ -154,24 +144,6 @@ Create workflow instruction files at `.agent/workflows/` (or `.agent/skills/` de
 8. Rebuild `/wiki/index.md` to reflect the current set of pages.
 9. Update `/wiki/hot.md` if it exists.
 10. Append a lint summary to `/wiki/_log.md`.
-
----
-
-### 6. Autonomous Lint Trigger
-
-Create `scripts/wiki-lint-trigger.sh` (POSIX shell):
-- Check if `wiki/index.md` exists and contains `lint_trigger: enabled`. If not, exit silently with code `0`.
-  ```sh
-  grep -q "lint_trigger: enabled" wiki/index.md 2>/dev/null || exit 0
-  ```
-- Read and increment a counter stored in `wiki/.lint_trigger_counter`.
-- If counter is `1` or a multiple of `15`, print:
-  `[WIKI MAINTENANCE DUE]: Pending /raw/ files or wiki health checks detected. Run wiki-lint.`
-- Otherwise exit silently with code `0`.
-- Make executable: `chmod +x scripts/wiki-lint-trigger.sh`.
-
-To disable: set `lint_trigger: disabled` in `/wiki/index.md` frontmatter.
-To re-enable: set `lint_trigger: enabled`.
 
 ---
 

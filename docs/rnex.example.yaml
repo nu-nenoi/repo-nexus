@@ -1,7 +1,13 @@
 # ==============================================================================
 # rnex.yaml — Repo Nexus Workspace Configuration (Full Example)
 # ==============================================================================
-# This file is the central manifest for a Repo Nexus workspace.
+# This file is the central team manifest for a Repo Nexus workspace (committed to git).
+#
+# TWO-LEVEL CONFIGURATION:
+#   1. Repo Config (rnex.yaml): Shared across team, tracks member repos, plugins.
+#   2. Local Config (.local.rnex.yaml): Machine-specific (gitignored), overrides/provides
+#      local member repo paths and developer-specific plugin settings.
+#
 # Place it in your workspace root directory and run `rnex sync` to apply.
 #
 # For more information: https://github.com/nu-nenoi/repo-nexus
@@ -37,8 +43,7 @@ repos_dir: ./repos
 # Local / custom plugins can also be placed in .rnex/plugins/<name>/
 
 plugins:
-  # karpathy-llm:
-  #   lint_trigger_enabled: true
+  # karpathy-llm: {}
 
 # ------------------------------------------------------------------------------
 # repos — Member repositories managed by Repo Nexus

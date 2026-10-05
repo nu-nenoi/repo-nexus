@@ -9,8 +9,7 @@ repos/*
 node_modules/
 .npmrc
 
-# Repo Nexus internal state
-.rnex/.lint_trigger_counter
-wiki/.lint_trigger_counter
-.lint_trigger_counter
+# Local machine-specific configuration
+.local.rnex.yaml
+.rnex.local.yaml
 

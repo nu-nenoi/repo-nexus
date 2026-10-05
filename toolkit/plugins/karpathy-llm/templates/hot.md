@@ -8,4 +8,4 @@
 * **Key Directives:**
   1. Maintain atomic pages with typed frontmatter relations.
   2. Update `/wiki/index.md` and this hot cache upon new ingests.
-  3. Run `scripts/wiki-lint-trigger.sh` after sessions modifying project files.
+  3. Run `wiki-lint` workflow to audit and maintain graph integrity.

@@ -8,6 +8,7 @@
 set -e
 
 RNEX_CONFIG_FILE="rnex.yaml"
+RNEX_LOCAL_CONFIG_FILE=".local.rnex.yaml"
 
 # ---- Terminal Colours (auto-detected) -------------------------------------
 
@@ -92,17 +93,17 @@ RNEX_VERSION="$(resolve_version)"
 
 # ---- Workspace Detection (Context-Aware) ----------------------------------
 
-# Search for rnex.yaml in current directory or parent directories
+# Search for rnex.yaml or .rnex.yaml in current directory or parent directories
 find_workspace_dir() {
   _curr="$(pwd -P 2>/dev/null || pwd)"
   while [ -n "$_curr" ] && [ "$_curr" != "/" ]; do
-    if [ -f "$_curr/$RNEX_CONFIG_FILE" ]; then
+    if [ -f "$_curr/$RNEX_CONFIG_FILE" ] || [ -f "$_curr/.rnex.yaml" ]; then
       printf '%s' "$_curr"
       return 0
     fi
     _curr="$(dirname "$_curr")"
   done
-  if [ -f "/$RNEX_CONFIG_FILE" ]; then
+  if [ -f "/$RNEX_CONFIG_FILE" ] || [ -f "/.rnex.yaml" ]; then
     printf '/'
     return 0
   fi
@@ -118,6 +119,7 @@ require_workspace() {
     fi
     NEXUS_DIR="$(cd -P "$(dirname "$_cfg_path")" 2>/dev/null && pwd -P)"
     WORKSPACE_YAML="$_cfg_path"
+    _init_local_yaml
     _load_repos_dir
     log_info "Using workspace at ${_BOLD}$NEXUS_DIR${_NC} ${_DIM}(via config: $WORKSPACE_YAML)${_NC}"
     return 0
@@ -136,16 +138,36 @@ require_workspace() {
   fi
 
   NEXUS_DIR="$_found_dir"
-  WORKSPACE_YAML="$NEXUS_DIR/$RNEX_CONFIG_FILE"
+  if [ -f "$NEXUS_DIR/$RNEX_CONFIG_FILE" ]; then
+    WORKSPACE_YAML="$NEXUS_DIR/$RNEX_CONFIG_FILE"
+  elif [ -f "$NEXUS_DIR/.rnex.yaml" ]; then
+    WORKSPACE_YAML="$NEXUS_DIR/.rnex.yaml"
+  else
+    WORKSPACE_YAML="$NEXUS_DIR/$RNEX_CONFIG_FILE"
+  fi
+  _init_local_yaml
   _load_repos_dir
 
-  log_info "Using workspace at ${_BOLD}$NEXUS_DIR${_NC} ${_DIM}($RNEX_CONFIG_FILE found)${_NC}"
+  log_info "Using workspace at ${_BOLD}$NEXUS_DIR${_NC} ${_DIM}($(basename "$WORKSPACE_YAML") found)${_NC}"
 }
 
-# Parse repos_dir from config, default to ./repos
+_init_local_yaml() {
+  if [ -f "$NEXUS_DIR/$RNEX_LOCAL_CONFIG_FILE" ]; then
+    WORKSPACE_LOCAL_YAML="$NEXUS_DIR/$RNEX_LOCAL_CONFIG_FILE"
+  elif [ -f "$NEXUS_DIR/.rnex.local.yaml" ]; then
+    WORKSPACE_LOCAL_YAML="$NEXUS_DIR/.rnex.local.yaml"
+  else
+    WORKSPACE_LOCAL_YAML="$NEXUS_DIR/$RNEX_LOCAL_CONFIG_FILE"
+  fi
+}
+
+# Parse repos_dir from config, check local first then repo, default to ./repos
 _load_repos_dir() {
   _rd=""
-  if [ -f "$WORKSPACE_YAML" ]; then
+  if [ -f "$WORKSPACE_LOCAL_YAML" ]; then
+    _rd="$(awk '/^repos_dir:/ { sub(/^repos_dir:[ ]*/, ""); sub(/[ ]*#.*/, ""); print }' "$WORKSPACE_LOCAL_YAML")"
+  fi
+  if [ -z "$_rd" ] && [ -f "$WORKSPACE_YAML" ]; then
     _rd="$(awk '/^repos_dir:/ { sub(/^repos_dir:[ ]*/, ""); sub(/[ ]*#.*/, ""); print }' "$WORKSPACE_YAML")"
   fi
   _rd="${_rd:-./repos}"
@@ -158,9 +180,10 @@ _load_repos_dir() {
 # ---- YAML Parser / Manipulator (for rnex.yaml) ----------------------------
 
 
-# Parse list of plugins from rnex.yaml (supports both mapping and list formats)
-yaml_list_plugins() {
-  [ -f "$WORKSPACE_YAML" ] || return 0
+# Parse list of plugins from a config file
+_yaml_list_plugins_from_file() {
+  _f="$1"
+  [ -f "$_f" ] || return 0
   awk '
     /^plugins:[ ]*$/ || /^plugins:[ ]*#/ { p=1; next }
     p && /^[^ #]/ { exit }
@@ -189,13 +212,21 @@ yaml_list_plugins() {
       if (length(line) > 0) print line
       next
     }
-  ' "$WORKSPACE_YAML"
+  ' "$_f"
 }
 
-# Get a configuration field value for a plugin under plugins.<plugin>.<field>
-yaml_plugin_get() {
-  _plugin="$1"; _field="$2"
-  [ -f "$WORKSPACE_YAML" ] || return 0
+# Parse list of plugins merged from repo and local configs
+yaml_list_plugins() {
+  {
+    _yaml_list_plugins_from_file "$WORKSPACE_YAML"
+    _yaml_list_plugins_from_file "$WORKSPACE_LOCAL_YAML"
+  } | awk '!seen[$0]++'
+}
+
+# Get a configuration field value for a plugin from a single file
+_yaml_plugin_get_from_file() {
+  _f="$1"; _plugin="$2"; _field="$3"
+  [ -f "$_f" ] || return 0
   awk -v plugin="$_plugin" -v field="$_field" '
     /^plugins:[ ]*$/ || /^plugins:[ ]*#/ { in_plugins=1; next }
     in_plugins && /^[^ #]/ { in_plugins=0 }
@@ -212,7 +243,53 @@ yaml_plugin_get() {
       }
     }
     in_target && !/^    / && !/^[ ]*#/ { in_target=0 }
-  ' "$WORKSPACE_YAML"
+  ' "$_f"
+}
+
+# Get a configuration field value for a plugin (local overrides repo config)
+yaml_plugin_get() {
+  _plugin="$1"; _field="$2"
+  _val="$(_yaml_plugin_get_from_file "$WORKSPACE_LOCAL_YAML" "$_plugin" "$_field")"
+  if [ -n "$_val" ]; then
+    printf '%s' "$_val"
+    return 0
+  fi
+  _yaml_plugin_get_from_file "$WORKSPACE_YAML" "$_plugin" "$_field"
+}
+
+# List all configuration fields for a plugin with their source annotation
+yaml_plugin_list_config() {
+  _plugin="$1"
+  if [ -f "$WORKSPACE_LOCAL_YAML" ]; then
+    awk -v plugin="$_plugin" '
+      /^plugins:[ ]*$/ || /^plugins:[ ]*#/ { in_p=1; next }
+      in_p && /^[^ #]/ { in_p=0 }
+      in_p && match($0, "^  " plugin ":[ ]*") { in_target=1; next }
+      in_target && /^    [a-zA-Z0-9_.-]+:[ ]*/ {
+        line = $0
+        sub(/^[ ]*/, "", line)
+        sub(/[ ]*#.*$/, "", line)
+        print line " (from local config)"
+        next
+      }
+      in_target && !/^    / && !/^[ ]*#/ { in_target=0 }
+    ' "$WORKSPACE_LOCAL_YAML"
+  fi
+  if [ -f "$WORKSPACE_YAML" ]; then
+    awk -v plugin="$_plugin" '
+      /^plugins:[ ]*$/ || /^plugins:[ ]*#/ { in_p=1; next }
+      in_p && /^[^ #]/ { in_p=0 }
+      in_p && match($0, "^  " plugin ":[ ]*") { in_target=1; next }
+      in_target && /^    [a-zA-Z0-9_.-]+:[ ]*/ {
+        line = $0
+        sub(/^[ ]*/, "", line)
+        sub(/[ ]*#.*$/, "", line)
+        print line
+        next
+      }
+      in_target && !/^    / && !/^[ ]*#/ { in_target=0 }
+    ' "$WORKSPACE_YAML"
+  fi
 }
 
 yaml_has_plugin() {
@@ -226,31 +303,20 @@ yaml_enable_plugin() {
     printf '\nplugins:\n' >> "$WORKSPACE_YAML"
   fi
   _tmp="$(mktemp)"
-  if [ "$_name" = "karpathy-llm" ]; then
-    awk -v name="$_name" '
-      /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
-        print
-        printf "  %s:\n    lint_trigger_enabled: true\n", name
-        added=1
-        next
-      }
-      { print }
-    ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
-  else
-    awk -v name="$_name" '
-      /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
-        print
-        printf "  %s: {}\n", name
-        added=1
-        next
-      }
-      { print }
-    ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
-  fi
+  awk -v name="$_name" '
+    /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
+      print
+      printf "  %s: {}\n", name
+      added=1
+      next
+    }
+    { print }
+  ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
 }
 
-yaml_disable_plugin() {
-  _name="$1"
+_yaml_disable_plugin_in_file() {
+  _file="$1"; _name="$2"
+  [ -f "$_file" ] || return 0
   _tmp="$(mktemp)"
   awk -v name="$_name" '
     /^plugins:[ ]*$/ || /^plugins:[ ]*#/ { in_plugins=1; print; next }
@@ -260,35 +326,85 @@ yaml_disable_plugin() {
     in_target && !/^    / { in_target=0 }
     in_plugins && $0 ~ ("^[ ]*-[ ]*" name "[ ]*($|#)") { next }
     { print }
-  ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
+  ' "$_file" > "$_tmp" && mv "$_tmp" "$_file"
 }
 
+yaml_disable_plugin() {
+  _name="$1"
+  _yaml_disable_plugin_in_file "$WORKSPACE_YAML" "$_name"
+  _yaml_disable_plugin_in_file "$WORKSPACE_LOCAL_YAML" "$_name"
+}
 
-# Parse list of repos from rnex.yaml
-yaml_list_repos() {
-  [ -f "$WORKSPACE_YAML" ] || return 0
-  cat "$WORKSPACE_YAML" | awk '
-    /^repos:/ { r=1; next }
+# Parse list of repos from a single config file
+_yaml_list_repos_from_file() {
+  _f="$1"
+  [ -f "$_f" ] || return 0
+  awk '
+    /^repos:[ ]*$/ || /^repos:[ ]*#/ { r=1; next }
     r && /^[^ #]/ { exit }
-    r && /^  [a-zA-Z0-9_.-]+:[ ]*$/ {
-      sub(/^  /, ""); sub(/:.*/, ""); print
+    r && /^  [a-zA-Z0-9_.-]+:[ ]*(#.*)?$/ {
+      line = $0
+      sub(/^[ ]*/, "", line)
+      sub(/:.*/, "", line)
+      gsub(/[[:space:]]/, "", line)
+      if (length(line) > 0) print line
     }
-  '
+  ' "$_f"
 }
 
-# Get a field value for a repo
+# Parse list of repos merged from repo and local configs (order preserved, deduplicated)
+yaml_list_repos() {
+  {
+    _yaml_list_repos_from_file "$WORKSPACE_YAML"
+    _yaml_list_repos_from_file "$WORKSPACE_LOCAL_YAML"
+  } | awk '!seen[$0]++'
+}
+
+# Get a field value for a repo from a specific config file
+_yaml_get_from_file() {
+  _f="$1"; _repo="$2"; _field="$3"
+  [ -f "$_f" ] || return 0
+  awk -v repo="$_repo" -v field="$_field" '
+    /^repos:[ ]*$/ || /^repos:[ ]*#/ { r=1; next }
+    r && /^[^ #]/ { r=0 }
+    r && match($0, "^  " repo ":[ ]*(#.*)?$") { in_target=1; next }
+    in_target && /^  [^ #]/ { in_target=0 }
+    in_target && match($0, "^    " field ":[ ]*") {
+      line = $0
+      sub("^    " field ":[ ]*", "", line)
+      sub(/[ ]*#.*$/, "", line)
+      gsub(/^["\x27]|["\x27]$/, "", line)
+      print line
+      exit
+    }
+  ' "$_f"
+}
+
+# Get a field value for a repo (local config overrides repo config)
 yaml_get() {
   _repo="$1"; _field="$2"
-  [ -f "$WORKSPACE_YAML" ] || return 0
-  cat "$WORKSPACE_YAML" | awk -v repo="$_repo" -v field="$_field" '
-    /^repos:/ { r=1; next }
-    r && /^[^ #]/ { exit }
-    r && match($0, "^  " repo ":[ ]*$") { t=1; next }
-    r && t && /^  [^ #]/ { exit }
-    r && t && match($0, "^    " field ":") {
-      sub(/^    [a-zA-Z0-9_.-]+:[ ]*/, ""); print
-    }
-  '
+  _val="$(_yaml_get_from_file "$WORKSPACE_LOCAL_YAML" "$_repo" "$_field")"
+  if [ -n "$_val" ]; then
+    printf '%s' "$_val"
+    return 0
+  fi
+  _yaml_get_from_file "$WORKSPACE_YAML" "$_repo" "$_field"
+}
+
+# Return where the repo path came from: "local", "repo", or "none"
+yaml_repo_path_source() {
+  _repo="$1"
+  _lval="$(_yaml_get_from_file "$WORKSPACE_LOCAL_YAML" "$_repo" "path")"
+  if [ -n "$_lval" ]; then
+    printf 'local'
+    return 0
+  fi
+  _rval="$(_yaml_get_from_file "$WORKSPACE_YAML" "$_repo" "path")"
+  if [ -n "$_rval" ]; then
+    printf 'repo'
+    return 0
+  fi
+  printf 'none'
 }
 
 yaml_has_repo() {
@@ -297,7 +413,7 @@ yaml_has_repo() {
 
 yaml_add_repo() {
   _name="$1"; _path="$2"; _rnex_dir="${3:-true}"
-  if ! grep -q '^repos:' "$WORKSPACE_YAML"; then
+  if ! grep -q '^repos:' "$WORKSPACE_YAML" 2>/dev/null; then
     printf '\nrepos:\n' >> "$WORKSPACE_YAML"
   fi
   _tmp="$(mktemp)"
@@ -312,8 +428,9 @@ yaml_add_repo() {
   ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
 }
 
-yaml_remove_repo() {
-  _name="$1"
+_yaml_remove_repo_from_file() {
+  _file="$1"; _name="$2"
+  [ -f "$_file" ] || return 0
   _tmp="$(mktemp)"
   awk -v name="$_name" '
     /^repos:/ { r=1; print; next }
@@ -322,11 +439,48 @@ yaml_remove_repo() {
     r && skip && /^  [^ #]/ { skip=0 }
     skip && /^    / { next }
     { print }
-  ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
+  ' "$_file" > "$_tmp" && mv "$_tmp" "$_file"
 }
 
-yaml_set() {
-  _repo="$1"; _field="$2"; _value="$3"
+yaml_remove_repo() {
+  _name="$1"
+  _yaml_remove_repo_from_file "$WORKSPACE_YAML" "$_name"
+  _yaml_remove_repo_from_file "$WORKSPACE_LOCAL_YAML" "$_name"
+}
+
+_yaml_set_in_file() {
+  _file="$1"; _repo="$2"; _field="$3"; _value="$4"
+  if [ ! -f "$_file" ]; then
+    mkdir -p "$(dirname "$_file")"
+    printf 'repos:\n' > "$_file"
+  elif ! grep -q '^repos:' "$_file" 2>/dev/null; then
+    printf '\nrepos:\n' >> "$_file"
+  fi
+
+  if ! awk -v repo="$_repo" '
+    /^repos:[ ]*$/ || /^repos:[ ]*#/ { in_r=1; next }
+    in_r && /^[^ #]/ { in_r=0 }
+    in_r && match($0, "^  " repo ":[ ]*(#.*)?$") { found=1; exit }
+    END { exit !found }
+  ' "$_file" 2>/dev/null; then
+    _tmp="$(mktemp)"
+    awk -v repo="$_repo" -v field="$_field" -v value="$_value" '
+      /^repos:[ ]*$/ || /^repos:[ ]*#/ {
+        print
+        printf "  %s:\n    %s: %s\n", repo, field, value
+        added=1
+        next
+      }
+      { print }
+      END {
+        if (!added) {
+          printf "repos:\n  %s:\n    %s: %s\n", repo, field, value
+        }
+      }
+    ' "$_file" > "$_tmp" && mv "$_tmp" "$_file"
+    return 0
+  fi
+
   _tmp="$(mktemp)"
   awk -v repo="$_repo" -v field="$_field" -v value="$_value" '
     /^repos:/ { in_repos=1; print; next }
@@ -337,11 +491,7 @@ yaml_set() {
       }
       in_repos=0; in_target=0
     }
-    in_repos && match($0, "^  " repo ":[ ]*$") {
-      if (in_target && !field_set) {
-        printf "    %s: %s\n", field, value
-        field_set=1
-      }
+    in_repos && match($0, "^  " repo ":[ ]*(#.*)?$") {
       in_target=1; print; next
     }
     in_target && /^  [^ #]/ {
@@ -362,7 +512,28 @@ yaml_set() {
         printf "    %s: %s\n", field, value
       }
     }
-  ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
+  ' "$_file" > "$_tmp" && mv "$_tmp" "$_file"
+}
+
+yaml_set() {
+  _repo="$1"; _field="$2"; _value="$3"
+  _yaml_set_in_file "$WORKSPACE_YAML" "$_repo" "$_field" "$_value"
+}
+
+yaml_set_local() {
+  _repo="$1"; _field="$2"; _value="$3"
+  if [ ! -f "$WORKSPACE_LOCAL_YAML" ]; then
+    cat <<'EOF' > "$WORKSPACE_LOCAL_YAML"
+# ==============================================================================
+# .local.rnex.yaml — Repo Nexus Local Configuration (Machine-Specific)
+# ==============================================================================
+# This file is gitignored. Use it to specify local repository paths and
+# custom local plugin overrides for this workstation.
+
+repos:
+EOF
+  fi
+  _yaml_set_in_file "$WORKSPACE_LOCAL_YAML" "$_repo" "$_field" "$_value"
 }
 
 # ---- Symlink & Member Repo Operations -------------------------------------
@@ -629,16 +800,6 @@ sync_plugins() {
         log_ok "Initialized template: $_d"
       fi
     done
-
-    # Reconcile plugin configuration (e.g., lint_trigger_enabled for karpathy-llm)
-    if [ "$_pname" = "karpathy-llm" ] && [ -f "$NEXUS_DIR/wiki/index.md" ]; then
-      _lte="$(yaml_plugin_get "karpathy-llm" "lint_trigger_enabled")"
-      if [ "$_lte" = "false" ]; then
-        sed -i.bak 's/lint_trigger:[ ]*enabled/lint_trigger: disabled/' "$NEXUS_DIR/wiki/index.md" 2>/dev/null && rm -f "$NEXUS_DIR/wiki/index.md.bak"
-      elif [ "$_lte" = "true" ]; then
-        sed -i.bak 's/lint_trigger:[ ]*disabled/lint_trigger: enabled/' "$NEXUS_DIR/wiki/index.md" 2>/dev/null && rm -f "$NEXUS_DIR/wiki/index.md.bak"
-      fi
-    fi
   done
 }
 
@@ -791,6 +952,12 @@ YAML_EOF
   mkdir -p "$_target_dir/.rnex/rules"
   mkdir -p "$_target_dir/.rnex/instructions"
 
+  # ---- Ensure local config is gitignored -----------------------------------
+  _target_gi="$_target_dir/.gitignore"
+  if [ ! -f "$_target_gi" ] || ! grep -qF "$RNEX_LOCAL_CONFIG_FILE" "$_target_gi" 2>/dev/null; then
+    printf '\n# Local machine-specific configuration\n%s\n.rnex.local.yaml\n' "$RNEX_LOCAL_CONFIG_FILE" >> "$_target_gi"
+  fi
+
   if [ "$_config_created" -eq 1 ]; then
     printf '\n'
     log_ok "Initialized Repo Nexus workspace at ${_BOLD}$_target_dir${_NC}"
@@ -808,9 +975,11 @@ cmd_add() {
   _name=""
   _path=""
   _rnex_dir="true"
+  _is_local=0
 
   while [ $# -gt 0 ]; do
     case "$1" in
+      --local)       _is_local=1 ;;
       --no-rnex-dir|--rnex-dir=false) _rnex_dir="false" ;;
       --rnex-dir|--rnex-dir=true)    _rnex_dir="true" ;;
       -y|--yes) _assume="y" ;;
@@ -828,15 +997,39 @@ cmd_add() {
     shift
   done
 
-  [ -n "$_name" ] || die "Usage: rnex add [--no-rnex-dir] <name> <path>"
-  [ -n "$_path" ] || die "Usage: rnex add [--no-rnex-dir] <name> <path>"
-
-  yaml_has_repo "$_name" && die "Repo '$_name' is already registered in $RNEX_CONFIG_FILE"
+  [ -n "$_name" ] || die "Usage: rnex add [--local] [--no-rnex-dir] <name> <path>"
+  [ -n "$_path" ] || die "Usage: rnex add [--local] [--no-rnex-dir] <name> <path>"
 
   _path="$(resolve_path "$_path")"
   [ -d "$_path" ] || die "Directory does not exist: $_path"
 
   ensure_repos_dir
+
+  if [ "$_is_local" -eq 1 ]; then
+    yaml_set_local "$_name" "path" "$_path"
+    [ "$_rnex_dir" = "false" ] && yaml_set_local "$_name" "rnex_dir" "false"
+    create_scope_link "$_name"
+    sync_repo_rnex "$_name"
+    printf '\n'
+    log_ok "Registered local path for repo '${_name}' in $(basename "$WORKSPACE_LOCAL_YAML")"
+    return 0
+  fi
+
+  if grep -q "^  $_name:" "$WORKSPACE_YAML" 2>/dev/null; then
+    _existing_path="$(_yaml_get_from_file "$WORKSPACE_YAML" "$_name" "path")"
+    if [ -n "$_existing_path" ]; then
+      die "Repo '$_name' is already registered in $(basename "$WORKSPACE_YAML")"
+    else
+      yaml_set "$_name" "path" "$_path"
+      [ "$_rnex_dir" = "false" ] && yaml_set "$_name" "rnex_dir" "false"
+      create_scope_link "$_name"
+      sync_repo_rnex "$_name"
+      printf '\n'
+      log_ok "Updated repo '${_name}' path in $(basename "$WORKSPACE_YAML")"
+      return 0
+    fi
+  fi
+
   yaml_add_repo "$_name" "$_path" "$_rnex_dir"
   create_scope_link "$_name"
   sync_repo_rnex "$_name"
@@ -879,18 +1072,20 @@ cmd_hide() {
 
 cmd_list() {
   require_workspace
-  printf '%b%-22s %-10s %-12s %s%b\n' "$_B" "NAME" "SCOPE" "RNEX_DIR" "PATH" "$_NC"
-  printf '%-22s %-10s %-12s %s\n' "----" "-----" "--------" "----"
+  printf '%b%-22s %-10s %-12s %-8s %s%b\n' "$_B" "NAME" "SCOPE" "RNEX_DIR" "CONFIG" "PATH" "$_NC"
+  printf '%-22s %-10s %-12s %-8s %s\n' "----" "-----" "--------" "------" "----"
   yaml_list_repos | while read -r _name; do
+    [ -n "$_name" ] || continue
     _scope="$(yaml_get "$_name" "scope")"
     _path="$(yaml_get "$_name" "path")"
+    _src="$(yaml_repo_path_source "$_name")"
     if repo_rnex_dir_enabled "$_name"; then
       _rd_str="enabled"
     else
       _rd_str="disabled"
     fi
-    printf '%-22s %-10s %-12s %s\n' \
-      "$_name" "${_scope:-visible}" "$_rd_str" "$_path"
+    printf '%-22s %-10s %-12s %-8s %s\n' \
+      "$_name" "${_scope:-visible}" "$_rd_str" "${_src:-repo}" "${_path:-(not set)}"
   done
 }
 
@@ -901,6 +1096,20 @@ cmd_status() {
   printf '\n%b%s%b\n' "$_B" "Repo Nexus Workspace Status" "$_NC"
   printf '=%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28
   printf '\n\n'
+
+  printf '%bConfiguration:%b\n' "$_BOLD" "$_NC"
+  if [ -f "$WORKSPACE_YAML" ]; then
+    printf '  %b●%b Repo Config:   %s %b(loaded)%b\n' "$_G" "$_NC" "$WORKSPACE_YAML" "$_DIM" "$_NC"
+  else
+    printf '  %b✗%b Repo Config:   %s %b(missing)%b\n' "$_R" "$_NC" "$WORKSPACE_YAML" "$_R" "$_NC"
+  fi
+  if [ -f "$WORKSPACE_LOCAL_YAML" ]; then
+    printf '  %b●%b Local Config:  %s %b(loaded, overrides repo config)%b\n' "$_G" "$_NC" "$WORKSPACE_LOCAL_YAML" "$_DIM" "$_NC"
+  else
+    printf '  %b○%b Local Config:  %s %b(not found — using repo defaults)%b\n' "$_DIM" "$_NC" "$WORKSPACE_LOCAL_YAML" "$_DIM" "$_NC"
+  fi
+  printf '  %b●%b Repos Dir:     %s\n' "$_DIM" "$_NC" "$REPOS_DIR"
+  printf '\n'
 
   printf '%bWorkspace AI Context:%b\n' "$_BOLD" "$_NC"
   if [ -e "$NEXUS_DIR/AGENTS.md" ]; then
@@ -925,26 +1134,45 @@ cmd_status() {
         _ver="$(plugin_get_field "$_pdir" "version")"
         _desc="$(plugin_get_field "$_pdir" "description")"
         printf '  %b●%b %-18s %b(v%s)%b %s\n' "$_G" "$_NC" "$_pname" "$_DIM" "${_ver:-0.1.0}" "$_NC" "${_desc:+- $_desc}"
+        _pcfg="$(yaml_plugin_list_config "$_pname")"
+        if [ -n "$_pcfg" ]; then
+          printf '    %bConfiguration:%b\n' "$_DIM" "$_NC"
+          echo "$_pcfg" | while read -r _line; do
+            [ -n "$_line" ] && printf '      %b- %s%b\n' "$_DIM" "$_line" "$_NC"
+          done
+        else
+          printf '    %bConfiguration: (default)%b\n' "$_DIM" "$_NC"
+        fi
       else
         printf '  %b✗%b %-18s %bMISSING%b\n' "$_R" "$_NC" "$_pname" "$_R" "$_NC"
+        printf '    %b↳ [!] Issue: plugin declared in config but directory not found on disk%b\n' "$_R" "$_NC"
       fi
     done
   fi
   printf '\n'
 
   printf '%b%s%b\n' "$_BOLD" "Member Repositories:" "$_NC"
-  if [ -z "$(yaml_list_repos)" ]; then
+  _all_repos="$(yaml_list_repos)"
+  if [ -z "$_all_repos" ]; then
     printf '  %b%s%b\n' "$_DIM" "(No repositories registered yet. Use 'rnex add <name> <path>')" "$_NC"
   else
-    yaml_list_repos | while read -r _name; do
+    echo "$_all_repos" | while read -r _name; do
+      [ -n "$_name" ] || continue
       _scope="$(yaml_get "$_name" "scope")"
       _path="$(yaml_get "$_name" "path")"
+      _src="$(yaml_repo_path_source "$_name")"
+      _src_tag=""
+      if [ "$_src" = "local" ]; then
+        _src_tag=" ${_DIM}(via $(basename "$WORKSPACE_LOCAL_YAML"))${_NC}"
+      elif [ "$_src" = "repo" ]; then
+        _src_tag=" ${_DIM}(via $(basename "$WORKSPACE_YAML"))${_NC}"
+      fi
+
       _link="$REPOS_DIR/$_name"
-      _resolved_path="$(resolve_repo_path "$_path")"
 
       _rnex_tag=""
       if repo_rnex_dir_enabled "$_name"; then
-        if [ -d "$_resolved_path/.rnex" ]; then
+        if [ -n "$_path" ] && [ -d "$(resolve_repo_path "$_path")/.rnex" ]; then
           _rnex_tag=" ${_DIM}[.rnex ✓]${_NC}"
         else
           _rnex_tag=" ${_Y}[.rnex pending]${_NC}"
@@ -953,31 +1181,93 @@ cmd_status() {
         _rnex_tag=" ${_DIM}[.rnex disabled]${_NC}"
       fi
 
+      if [ -z "$_path" ]; then
+        printf '  %b✗%b %-22s %bMISSING PATH%b%b\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "$_rnex_tag"
+        printf '    %b↳ Suggestion: set path in %s or run '\''rnex add %s <path> --local'\''%b\n' \
+          "$_Y" "$(basename "$WORKSPACE_LOCAL_YAML")" "$_name" "$_NC"
+        continue
+      fi
+
+      _resolved_path="$(resolve_repo_path "$_path")"
+
+      if [ ! -d "$_resolved_path" ]; then
+        printf '  %b✗%b %-22s %bBROKEN PATH%b%b → %s%b\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "$_rnex_tag" "$_path" "$_src_tag"
+        printf '    %b↳ Suggestion: update path in %s or run '\''rnex add %s <path> --local'\''%b\n' \
+          "$_Y" "$(basename "$WORKSPACE_LOCAL_YAML")" "$_name" "$_NC"
+        continue
+      fi
+
       if [ "$_scope" = "hidden" ]; then
-        printf '  %b○%b %-22s %bhidden%b%b\n' "$_Y" "$_NC" "$_name" "$_DIM" "$_NC" "$_rnex_tag"
+        printf '  %b○%b %-22s %bhidden%b%b → %s%b\n' "$_Y" "$_NC" "$_name" "$_DIM" "$_NC" "$_rnex_tag" "$_path" "$_src_tag"
       elif [ -L "$_link" ] && [ -d "$_link" ]; then
-        printf '  %b●%b %-22s %bactive%b%b → %s\n' "$_G" "$_NC" "$_name" "$_G" "$_NC" "$_rnex_tag" "$_path"
+        printf '  %b●%b %-22s %bactive%b%b → %s%b\n' "$_G" "$_NC" "$_name" "$_G" "$_NC" "$_rnex_tag" "$_path" "$_src_tag"
       elif [ -L "$_link" ]; then
-        printf '  %b✗%b %-22s %bBROKEN LINK%b%b → %s\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "$_rnex_tag" "$_path"
+        printf '  %b✗%b %-22s %bBROKEN LINK%b%b → %s%b\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "$_rnex_tag" "$_path" "$_src_tag"
+        printf '    %b↳ Suggestion: run '\''rnex sync'\'' to recreate scope link%b\n' "$_Y" "$_NC"
       else
-        printf '  %b✗%b %-22s %bMISSING LINK%b%b %s\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "$_rnex_tag" "(run 'rnex sync')"
+        printf '  %b✗%b %-22s %bMISSING LINK%b%b → %s%b\n' "$_R" "$_NC" "$_name" "$_R" "$_NC" "$_rnex_tag" "$_path" "$_src_tag"
+        printf '    %b↳ Suggestion: run '\''rnex sync'\'' to create scope link%b\n' "$_Y" "$_NC"
       fi
     done
   fi
 
   printf '\n%bWorkspace:   %s%b\n' "$_DIM" "$NEXUS_DIR" "$_NC"
   printf '%bRepos Dir:   %s%b\n' "$_DIM" "$REPOS_DIR" "$_NC"
-  printf '%bConfig:      %s%b\n\n' "$_DIM" "$WORKSPACE_YAML" "$_NC"
+  printf '%bRepo Config: %s%b\n' "$_DIM" "$WORKSPACE_YAML" "$_NC"
+  [ -f "$WORKSPACE_LOCAL_YAML" ] && printf '%bLocal Config:%s%b\n' "$_DIM" " $WORKSPACE_LOCAL_YAML" "$_NC"
+  printf '\n'
 }
 
 cmd_sync() {
   require_workspace
   ensure_repos_dir
 
-  log_info "Synchronizing workspace from $RNEX_CONFIG_FILE..."
+  log_info "Synchronizing workspace from $(basename "$WORKSPACE_YAML")..."
   sync_plugins
+
   yaml_list_repos | while read -r _name; do
+    [ -n "$_name" ] || continue
+    _raw_path="$(yaml_get "$_name" "path")"
     _scope="$(yaml_get "$_name" "scope")"
+
+    if [ -z "$_raw_path" ]; then
+      log_warn "Member repo '${_BOLD}$_name${_NC}' has NO path configured in $(basename "$WORKSPACE_YAML") or $(basename "$WORKSPACE_LOCAL_YAML")"
+      _prompted_path=""
+      if [ -t 0 ] && [ -t 1 ]; then
+        printf '%b  Enter local path for member repo %s%b (or press Enter to skip): ' "$_BOLD" "$_name" "$_NC"
+        read -r _prompted_path || true
+      fi
+      if [ -n "$_prompted_path" ]; then
+        _p_res="$(resolve_path "$_prompted_path")"
+        if [ -d "$_p_res" ]; then
+          yaml_set_local "$_name" "path" "$_prompted_path"
+          log_ok "Saved local path for '$_name' to $(basename "$WORKSPACE_LOCAL_YAML")"
+          _raw_path="$_prompted_path"
+        else
+          log_err "Directory does not exist: $_p_res"
+        fi
+      fi
+      if [ -z "$_raw_path" ]; then
+        log_dim "To provide your local path for '$_name', configure $(basename "$WORKSPACE_LOCAL_YAML"):"
+        log_dim "  repos:"
+        log_dim "    $_name:"
+        log_dim "      path: /path/to/$_name"
+        log_dim "Or run: rnex add $_name /path/to/$_name --local"
+        continue
+      fi
+    fi
+
+    _resolved_path="$(resolve_repo_path "$_raw_path")"
+    if [ ! -d "$_resolved_path" ]; then
+      log_warn "Member repo '${_BOLD}$_name${_NC}' path does not exist on disk: $_resolved_path"
+      log_dim "To fix this path locally on your machine, configure $(basename "$WORKSPACE_LOCAL_YAML"):"
+      log_dim "  repos:"
+      log_dim "    $_name:"
+      log_dim "      path: /path/to/$_name"
+      log_dim "Or run: rnex add $_name /correct/path/to/$_name --local"
+      remove_scope_link "$_name" 2>/dev/null || true
+      continue
+    fi
 
     if [ "$_scope" = "hidden" ]; then
       remove_scope_link "$_name"
@@ -1048,9 +1338,12 @@ cmd_plugin_info() {
   [ -n "$_home" ] && printf '%bHomepage:%b     %s\n' "$_BOLD" "$_NC" "$_home"
   printf '%bLocation:%b     %s\n' "$_BOLD" "$_NC" "$_pdir"
   if yaml_has_plugin "$_name"; then
-    _lte="$(yaml_plugin_get "$_name" "lint_trigger_enabled")"
-    if [ -n "$_lte" ]; then
-      printf '%bConfiguration:%b  lint_trigger_enabled: %s\n' "$_BOLD" "$_NC" "$_lte"
+    _cfg="$(yaml_plugin_list_config "$_name")"
+    if [ -n "$_cfg" ]; then
+      printf '%bConfiguration:%b\n' "$_BOLD" "$_NC"
+      echo "$_cfg" | while read -r _cline; do
+        [ -n "$_cline" ] && printf '  %s\n' "$_cline"
+      done
     fi
   fi
 
@@ -1099,7 +1392,7 @@ cmd_plugin_enable() {
   [ -n "$_name" ] || _name="$_pname"
 
   yaml_enable_plugin "$_name"
-  log_ok "Plugin '$_name' enabled in $RNEX_CONFIG_FILE"
+  log_ok "Plugin '$_name' enabled in $(basename "$WORKSPACE_YAML")"
 
   # Link rules and workflows into workspace root
   plugin_list_rules "$_pdir" | while read -r _item; do
@@ -1137,13 +1430,11 @@ cmd_plugin_enable() {
     fi
   done
 
-  # Ensure machine-local state files (like .rnex/.lint_trigger_counter) are gitignored
+  # Ensure local machine-specific config is gitignored
   _gi="$NEXUS_DIR/.gitignore"
-  if [ -f "$NEXUS_DIR/.rnex/scripts/wiki-lint-trigger.sh" ] || [ -f "$NEXUS_DIR/scripts/wiki-lint-trigger.sh" ]; then
-    if [ ! -f "$_gi" ] || ! grep -qF ".rnex/.lint_trigger_counter" "$_gi" 2>/dev/null; then
-      printf '\n# Repo Nexus internal state\n.rnex/.lint_trigger_counter\nwiki/.lint_trigger_counter\n.lint_trigger_counter\n' >> "$_gi"
-      log_dim "Added '.rnex/.lint_trigger_counter' to .gitignore"
-    fi
+  if [ ! -f "$_gi" ] || ! grep -qF "$RNEX_LOCAL_CONFIG_FILE" "$_gi" 2>/dev/null; then
+    printf '\n# Local machine-specific configuration\n%s\n.rnex.local.yaml\n' "$RNEX_LOCAL_CONFIG_FILE" >> "$_gi"
+    log_dim "Added '$RNEX_LOCAL_CONFIG_FILE' to .gitignore"
   fi
 
   cmd_sync
@@ -1321,7 +1612,7 @@ cmd_help() {
     sync                    Reconcile scope links, plugins & member .rnex/ directories
 
   REPO MANAGEMENT
-    add [--no-rnex-dir] <name> <path>  Register local repo (creates repos/<name> and .rnex/)
+    add [--local] [--no-rnex-dir] <name> <path>  Register member repo (--local writes to .local.rnex.yaml)
     remove <name>           Unregister repo and unlink scope
     list                    List all registered member repos with scope & .rnex status
     status                  Inspect workspace health, active repos, and plugins
@@ -1340,7 +1631,8 @@ cmd_help() {
   EXAMPLES
     rnex init                                 # Initialize workspace in current folder
     rnex install                              # Install rnex CLI globally to ~/.local/bin
-    rnex add my-app ~/code/my-app             # Register repo (links into repos/my-app, enables .rnex/)
+    rnex add my-app ~/code/my-app             # Register repo in rnex.yaml (team-visible)
+    rnex add my-app ~/code/my-app --local     # Register local path in .local.rnex.yaml
     rnex add --no-rnex-dir my-app ~/code/my-app # Register repo with .rnex/ disabled
     rnex rnex-dir disable my-app              # Disable .rnex directory for a repo
     rnex rnex-dir enable my-app               # Re-enable .rnex directory for a repo
@@ -1349,7 +1641,7 @@ cmd_help() {
     rnex plugin enable karpathy-llm           # Enable Karpathy LLM plugin
     rnex hide my-app                          # Temporarily hide from active indexing
     rnex show my-app                          # Bring back into active scope
-    rnex sync                                 # Reconcile all links from $RNEX_CONFIG_FILE
+    rnex sync                                 # Reconcile all links from config
 
 EOF
 }

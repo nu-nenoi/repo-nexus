@@ -206,24 +206,17 @@ pass
 run_test "Plugin enable command"
 "$TEST_WORKSPACE/rnex" plugin enable karpathy-llm >/dev/null
 grep -q "karpathy-llm" "$TEST_WORKSPACE/rnex.yaml" || { fail "karpathy-llm not in rnex.yaml"; exit 1; }
-grep -q "lint_trigger_enabled:[ ]*true" "$TEST_WORKSPACE/rnex.yaml" || { fail "lint_trigger_enabled not in rnex.yaml"; exit 1; }
 [ -f "$TEST_WORKSPACE/.rnex/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md missing in workspace root"; exit 1; }
 [ -L "$TEST_WORKSPACE/.rnex/instructions/karpathy-llm.md" ] || { fail "karpathy-llm.md missing from workspace .rnex/instructions"; exit 1; }
 [ -L "$TEST_REPO/.rnex/rules/KARPATHY_RULES.md" ] || { fail "KARPATHY_RULES.md symlink missing in member repo .rnex"; exit 1; }
 [ -L "$TEST_REPO/.rnex/instructions/karpathy-llm.md" ] || { fail "karpathy-llm.md symlink missing in member repo .rnex/instructions"; exit 1; }
 [ ! -e "$TEST_REPO/KARPATHY_RULES.md" ] || { fail "Plugin rule should not be loose at member repo root"; exit 1; }
 [ -f "$TEST_WORKSPACE/.rnex/templates/LLM_WIKI.sample.md" ] || { fail "LLM_WIKI.sample.md not initialized in .rnex/templates/"; exit 1; }
-[ -f "$TEST_WORKSPACE/.rnex/scripts/wiki-lint-trigger.sh" ] || { fail "wiki-lint-trigger.sh not initialized in .rnex/scripts/"; exit 1; }
 [ -f "$TEST_WORKSPACE/wiki/index.md" ] || { fail "wiki/index.md not initialized in workspace"; exit 1; }
 grep -q "title: Wiki Index" "$TEST_WORKSPACE/wiki/index.md" || { fail "wiki/index.md missing title: Wiki Index"; exit 1; }
-grep -q ".rnex/.lint_trigger_counter" "$TEST_WORKSPACE/.gitignore" || { fail ".rnex/.lint_trigger_counter not added to .gitignore"; exit 1; }
+grep -q ".local.rnex.yaml" "$TEST_WORKSPACE/.gitignore" || { fail ".local.rnex.yaml not added to .gitignore"; exit 1; }
 _status_out="$("$TEST_WORKSPACE/rnex" status 2>&1)"
 echo "$_status_out" | grep -q "karpathy-llm" || { fail "Active plugin not listed in status"; exit 1; }
-
-# Verify updating lint_trigger_enabled: false reconciles wiki/index.md upon sync
-sed -i.bak 's/lint_trigger_enabled: true/lint_trigger_enabled: false/' "$TEST_WORKSPACE/rnex.yaml"
-"$TEST_WORKSPACE/rnex" sync >/dev/null
-grep -q "lint_trigger: disabled" "$TEST_WORKSPACE/wiki/index.md" || { fail "sync did not reconcile lint_trigger: disabled"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
@@ -370,6 +363,62 @@ run_test "Default instructions instruct agents to read rnex.yaml and plugin inst
 grep -q "rnex.yaml" "$_cwd_ws/AGENTS.md" || { fail "Default instructions do not mandate reading rnex.yaml"; exit 1; }
 grep -q "Plugin Instructions" "$_cwd_ws/AGENTS.md" || { fail "Plugin instructions rule missing from default AGENTS.md"; exit 1; }
 grep -q "separate instruction files" "$_cwd_ws/AGENTS.md" || { fail "Reference to separate instruction files missing"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Two-level config: add --local writes to .local.rnex.yaml"
+_local_repo_dir="$TEST_TMP/local-repo"
+mkdir -p "$_local_repo_dir"
+echo '{"name": "local"}' > "$_local_repo_dir/package.json"
+"$TEST_WORKSPACE/rnex" add --local local-app "$_local_repo_dir" >/dev/null
+[ -f "$TEST_WORKSPACE/.local.rnex.yaml" ] || { fail ".local.rnex.yaml not created"; exit 1; }
+grep -q "local-app" "$TEST_WORKSPACE/.local.rnex.yaml" || { fail "local-app not found in .local.rnex.yaml"; exit 1; }
+! grep -q "local-app" "$TEST_WORKSPACE/rnex.yaml" || { fail "local-app should not be written to rnex.yaml"; exit 1; }
+[ -L "$TEST_WORKSPACE/repos/local-app" ] || { fail "Scope link repos/local-app missing"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Two-level config: path in .local.rnex.yaml overrides rnex.yaml"
+# Add team-repo to rnex.yaml without a path (or with a placeholder)
+cat >> "$TEST_WORKSPACE/rnex.yaml" <<EOF
+  team-app:
+    scope: visible
+    rnex_dir: true
+EOF
+_team_repo_dir="$TEST_TMP/team-repo-local"
+mkdir -p "$_team_repo_dir"
+# Provide path in .local.rnex.yaml
+"$TEST_WORKSPACE/rnex" add --local team-app "$_team_repo_dir" >/dev/null
+_status_out="$("$TEST_WORKSPACE/rnex" status 2>&1)"
+echo "$_status_out" | grep "team-app" | grep -q "via .local.rnex.yaml" || { fail "Status did not show path via .local.rnex.yaml"; exit 1; }
+[ -L "$TEST_WORKSPACE/repos/team-app" ] || { fail "team-app scope link missing"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Sync suggests providing missing path for repo without path"
+cat >> "$TEST_WORKSPACE/rnex.yaml" <<EOF
+  unlinked-app:
+    scope: visible
+EOF
+_sync_out="$("$TEST_WORKSPACE/rnex" sync 2>&1)"
+echo "$_sync_out" | grep -qi "unlinked-app" || { fail "Sync did not mention unlinked-app"; exit 1; }
+echo "$_sync_out" | grep -qi "NO path configured" || { fail "Sync did not warn about missing path"; exit 1; }
+echo "$_sync_out" | grep -q "rnex add unlinked-app" || { fail "Sync did not suggest rnex add --local"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Status gracefully highlights MISSING PATH and BROKEN PATH"
+cat >> "$TEST_WORKSPACE/rnex.yaml" <<EOF
+  broken-app:
+    path: /nonexistent/path/for/test
+    scope: visible
+EOF
+_status_out="$("$TEST_WORKSPACE/rnex" status 2>&1)"
+echo "$_status_out" | grep -q "MISSING PATH" || { fail "Status did not highlight MISSING PATH for unlinked-app"; exit 1; }
+echo "$_status_out" | grep -q "BROKEN PATH" || { fail "Status did not highlight BROKEN PATH for broken-app"; exit 1; }
+echo "$_status_out" | grep -q "Repo Config:" || { fail "Status did not display Repo Config"; exit 1; }
+echo "$_status_out" | grep -q "Local Config:" || { fail "Status did not display Local Config"; exit 1; }
+echo "$_status_out" | grep -q "Suggestion:" || { fail "Status did not include Suggestion for broken/missing repos"; exit 1; }
 pass
 
 # ==========================================================================

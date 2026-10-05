@@ -54,7 +54,7 @@ A **simple, lightweight companion tool** for multi-repo workflows. It links mult
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Repo Nexus Workspace Root                                 │
+│  Repo Nexus Workspace Root                                  │
 │                                                             │
 │  my-workspace/                                              │
 │    repos/                                                   │
@@ -214,20 +214,22 @@ The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design p
 * **Autonomous Karpathy LLM Wiki Knowledge Architecture:**
   * **Intake (`/raw/`):** Append-only intake for unmodified source documents.
   * **Curated Knowledge Base (`/wiki/`):** Interlinked atomic markdown pages with typed YAML frontmatter relations (`sources`, `related`, `extends`, `contradicts`, `mentioned_in`).
-  * **Control Index (`/wiki/index.md`):** Master navigation index with `lint_trigger: enabled|disabled` toggle.
+  * **Navigation Index (`/wiki/index.md`):** Master categorized navigation index.
   * **Rolling Context (`/wiki/hot.md`):** ~500-word quick-orient context cache for AI agents.
   * **Operation Log (`/wiki/_log.md`):** Append-only audit trail of ingest and lint operations.
-  * **Session Counter (`.rnex/.lint_trigger_counter`):** Machine-local state tracking session activity (gitignored).
-* **Autonomous Lint Trigger (`.rnex/scripts/wiki-lint-trigger.sh`):** Session counter and maintenance alerts on session 1 and every 15 sessions.
 * **Standardized Workflows (`.rnex/workflows/`):**
   * `wiki-ingest.md`: 8-step protocol decomposing raw source documents into 5–25 atomic wiki pages.
   * `wiki-lint.md`: 10-step protocol validating paths, recomputing `mentioned_in`, removing orphans, resolving contradictions, identifying gaps, suggesting source candidates, and rebuilding indexes.
 
 ---
 
-## Workspace Configuration (`rnex.yaml`)
+## Two-Level Configuration
 
-The configuration file defines repo symlink directory, enabled plugins, and registered repositories:
+Repo Nexus supports a two-level configuration model:
+1. **Repo Config (`rnex.yaml`):** Shared manifest committed to git. Tracks member repo names, default settings, and active plugins.
+2. **Local Config (`.local.rnex.yaml`):** Machine-specific file ignored in `.gitignore`. Overrides or provides member repo paths on each developer's workstation.
+
+### Repo Configuration (`rnex.yaml`)
 
 ```yaml
 # Directory for repository symlinks (relative or absolute)
@@ -235,23 +237,29 @@ repos_dir: ./repos
 
 # Workspace plugins
 plugins:
-  karpathy-llm:
-    lint_trigger_enabled: true
+  karpathy-llm: {}
 
 # Member repositories
 repos:
   backend:
-    path: /Users/dev/code/backend-api
     scope: visible
     rnex_dir: true      # default: true (creates repos/backend/.rnex/)
   frontend:
-    path: ../web-app
+    path: ../web-app    # optional default relative path
     scope: visible
     rnex_dir: true
   analytics:
     path: /Users/dev/code/analytics
     scope: hidden
     rnex_dir: false     # disabled: leaves analytics repo 100% untouched
+```
+
+### Local Configuration (`.local.rnex.yaml`)
+
+```yaml
+repos:
+  backend:
+    path: /Users/alice/projects/backend-api
 ```
 
 > See [`docs/rnex.example.yaml`](docs/rnex.example.yaml) for a comprehensive example with all options.

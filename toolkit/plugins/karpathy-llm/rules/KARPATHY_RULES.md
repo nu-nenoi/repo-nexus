@@ -56,9 +56,7 @@ When working in a repository with an active Karpathy LLM Wiki (`/wiki/` and `/ra
 - **Intake**: All source material (articles, transcripts, docs, notes) goes to `/raw/` unmodified. Never write directly to `/wiki/` without ingesting.
 - **Orientation**: Before answering domain questions, read `/wiki/index.md` to find relevant pages, then read only those pages. If `hot.md` exists, read it first as a quick-orient step.
 - **Ingestion**: When files appear in `/raw/`, run the `wiki-ingest` workflow (`.rnex/workflows/wiki-ingest.md`). One source document typically produces many atomic pages (commonly 5–25 pages) — do not collapse a source into a single file.
-- **Cadence**: After any session where repository files were created, edited, or deleted, run `.rnex/scripts/wiki-lint-trigger.sh`. If it outputs `[WIKI MAINTENANCE DUE]`, run the `wiki-lint` workflow (`.rnex/workflows/wiki-lint.md`) before stopping.
-- **No-op sessions**: Do not run the trigger after read-only or purely conversational sessions where no files changed.
-- **Enable/disable**: Wiki automation is controlled by `lint_trigger_enabled: true|false` in `rnex.yaml` (and `lint_trigger: enabled|disabled` in `/wiki/index.md` frontmatter). Edit either field to toggle.
+- **Maintenance**: Run the `wiki-lint` workflow (`.rnex/workflows/wiki-lint.md`) to validate paths, update `mentioned_in`, and preserve graph integrity.
 
 ---
 
