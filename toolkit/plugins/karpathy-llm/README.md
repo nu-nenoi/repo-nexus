@@ -32,37 +32,22 @@ Reference specification: [setup-karpathy-wiki.md](https://github.com/nu-nenoi/ai
 
 ---
 
-## Step 0 — Configuration Interview
+## Deterministic Lifecycle: Initialization vs. Evolutionary Growth
 
-When an AI agent or developer sets up the Karpathy LLM Wiki in a repository or workspace, consult the Step 0 configuration questions:
+To ensure workspaces remain 100% predictable, understandable, and consistent across all tools, the Karpathy LLM Wiki follows a strict two-phase lifecycle:
 
-1. **[Q1] Which AI agent instruction file should the wiki rules be written to?**
-   - In a **Repo Nexus workspace**: Instructions are scoped under `.rnex/plugins/karpathy-llm/` (`rules/behavioral.md` and `instructions/wiki-architecture.md`). Agents read `rnex.yaml` to detect enabled plugins and route context automatically.
-   - In a **standalone setup** (outside Repo Nexus):
-     - `AGENTS.md` (universal, works across most harnesses)
-     - `CLAUDE.md` (Claude Code / Anthropic)
-     - `.cursor/rules/wiki.mdc` (Cursor)
-     - `.github/copilot-instructions.md` (GitHub Copilot)
-     - `GEMINI.md` (Google Gemini / Antigravity)
-     - `.windsurfrules` (Windsurf)
-     - Other — specify path
-     *Append the `## Karpathy Wiki Rules` section to that file while preserving all existing content.*
+### Phase 1: 100% Deterministic Initialization
+Enabling the plugin (`rnex plugin enable karpathy-llm`) performs an exact, zero-interview scaffolding step:
+* **Predictable Baseline**: Fixed standard files are created (`raw/.gitkeep`, `wiki/index.md`, `wiki/hot.md`, `wiki/_log.md`).
+* **Scoped Assets**: Behavioral rules, wiki architecture guides, workflows, and templates are cleanly isolated under `.rnex/plugins/karpathy-llm/`.
+* **Zero Guesswork**: No interactive interviews, no AI-generated folder variances, and no "agent decides" ambiguities at init time.
+* **Idempotent**: Safe to run repeatedly; existing user files are never overwritten.
 
-2. **[Q2] What is this wiki for?**
-   - Research / reading list — articles, papers, PDFs on a topic
-   - Personal second brain — meetings, notes, business context, personal projects
-   - Content archive — transcripts, podcast notes, newsletters
-   - Codebase knowledge — architecture decisions, runbooks, team conventions
-   - Other (describe briefly)
-
-3. **[Q3] How should the wiki be organized?**
-   - **Flat** — all pages at the top level of `/wiki/` (simpler, good default)
-   - **Structured** — subfolders by category, chosen based on Q2:
-     - Research → `concepts/`, `people/`, `organizations/`, `sources/`, `analysis/`
-     - Second brain → `projects/`, `people/`, `decisions/`, `logs/`
-     - Content archive → `sources/`, `people/`, `tools/`, `concepts/`
-     - Codebase → `architecture/`, `decisions/`, `runbooks/`, `people/`
-   - **Agent decides** — infer structure from the first batch of ingested content
+### Phase 2: Evolutionary Growth & Domain Specialization (Usage Phase)
+Once initialized, the workspace structure organically evolves according to actual domain needs and source materials:
+* **Source Ingestion (`wiki-ingest`)**: As raw source documents are deposited into `/raw/` and ingested, atomic pages are generated. Users or agents can organize pages into categorical subfolders (e.g. `architecture/`, `decisions/`, `concepts/`, `projects/`) or keep them flat.
+* **Customizable Guidelines**: Teams can tailor `rules/behavioral.md` and `instructions/wiki-architecture.md` for their specific team conventions.
+* **Graph Maintenance (`wiki-lint`)**: The periodic lint workflow validates relation paths, updates `mentioned_in`, and rebuilds `index.md` and `hot.md` to match the evolved knowledge graph.
 
 ---
 

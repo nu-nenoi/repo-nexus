@@ -12,54 +12,23 @@ Do not hard-code any specific AI tool or harness into the wiki structure itself.
 
 ---
 
-### Step 0 — Configuration (ask before creating any files)
+### 1. Deterministic Scaffolding (Create Immediately)
 
-Ask ALL of the following questions and wait for answers:
+Initialize the fixed baseline directories and control files:
 
-[Q1] Which AI agent instruction file should the wiki rules be written to?
-  - In a Repo Nexus workspace: plugin instructions are maintained under `.rnex/plugins/karpathy-llm/` (`rules/behavioral.md` and `instructions/wiki-architecture.md`). Agents read `rnex.yaml` to detect enabled plugins and read their scoped files.
-  - In a standalone setup (outside Repo Nexus):
-    - `AGENTS.md` (universal, works across most harnesses)
-    - `CLAUDE.md` (Claude Code / Anthropic)
-    - `.cursor/rules/wiki.mdc` (Cursor)
-    - `.github/copilot-instructions.md` (GitHub Copilot)
-    - `GEMINI.md` (Google Gemini / Antigravity)
-    - `.windsurfrules` (Windsurf)
-    - Other — specify path
-    Append a `## Karpathy Wiki Rules` section to that file. Preserve all existing content.
+- **`/raw/`** — Append-only intake directory. Add `.gitkeep`. All original source material goes here unmodified.
+- **`/wiki/index.md`** — Master navigation index organizing links to atomic pages.
+- **`/wiki/hot.md`** — Rolling ~500-word orientation cache for quick agent onboarding.
+- **`/wiki/_log.md`** — Append-only operation log recording all ingest and lint runs.
 
-[Q2] What is this wiki for?
-  - Research / reading list — articles, papers, PDFs on a topic
-  - Personal second brain — meetings, notes, business context, personal projects
-  - Content archive — transcripts, podcast notes, newsletters
-  - Codebase knowledge — architecture decisions, runbooks, team conventions
-  - Other (describe briefly)
-
-[Q3] How should the wiki be organized?
-  - Flat — all pages at the top level of `/wiki/` (simpler, good default)
-  - Structured — subfolders by category, chosen based on Q2 answer
-  - Agent decides — infer structure from the first batch of ingested content
+Do not create arbitrary or speculative subdirectories during initialization. Scaffolding is 100% deterministic. Domain subfolders and categories emerge organically during the source ingestion phase (`wiki-ingest`).
 
 ---
 
-### 1. Directories and Files
+### 2. Agent Rules & Routing
 
-**`/raw/`** — Append-only intake directory. All original source material goes here unmodified. Add `.gitkeep`.
-
-**`/wiki/`** — Curated knowledge base of atomic markdown pages. Structure per Q3:
-  - Flat: all pages directly in `/wiki/`
-  - Structured: subfolders matching the project type from Q2:
-    - Research → `concepts/`, `people/`, `organizations/`, `sources/`, `analysis/`
-    - Second brain → `projects/`, `people/`, `decisions/`, `logs/`
-    - Content archive → `sources/`, `people/`, `tools/`, `concepts/`
-    - Codebase → `architecture/`, `decisions/`, `runbooks/`, `people/`
-
-**`/wiki/index.md`** — Master navigation index. Contains:
-  - Categorized links to every wiki page. Auto-maintained after every ingest and lint run.
-
-**`/wiki/_log.md`** — Append-only operation log. Every ingest and lint run appends a timestamped entry.
-
-**`/wiki/hot.md`** *(create only for second brain or codebase wiki)* — Rolling ~500-word cache of the most recently relevant context. Lets an agent orient without reading the full wiki.
+- **Repo Nexus Workspaces**: Scoped under `.rnex/plugins/karpathy-llm/` (`rules/behavioral.md` and `instructions/wiki-architecture.md`). Agents route through `rnex.yaml` automatically.
+- **Standalone Repositories**: Append the `## Karpathy Wiki Rules` section (see Section 4) to the primary AI instructions file (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`, etc.), preserving all existing content.
 
 ---
 
@@ -104,9 +73,9 @@ The relation graph lives in frontmatter, not in prose links. Agents traverse the
 
 ---
 
-### 4. Agent Instructions
+### 4. Agent Instructions (Standalone Repositories)
 
-In the file chosen in Q1, append:
+In standalone repositories (outside Repo Nexus), append:
 
 ```markdown
 ## Karpathy Wiki Rules
