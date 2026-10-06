@@ -953,7 +953,7 @@ sync_code_workspace() {
 
   printf '    {\n      "name": "%s (Workspace Root)",\n      "path": "."\n    }' "$_root_name" > "$_f_tmp"
 
-  _repos_rel="${REPOS_DIR#$NEXUS_DIR/}"
+  _repos_rel="${REPOS_DIR#"$NEXUS_DIR"/}"
   _repos_rel="${_repos_rel#./}"
   [ -n "$_repos_rel" ] || _repos_rel="repos"
 
