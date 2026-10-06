@@ -509,7 +509,10 @@ resolve_repo_path() {
   fi
 }
 
-ensure_repos_dir() { mkdir -p "$REPOS_DIR"; }
+ensure_repos_dir() {
+  mkdir -p "$REPOS_DIR"
+  [ -f "$REPOS_DIR/.gitkeep" ] || touch "$REPOS_DIR/.gitkeep"
+}
 
 # ---- Member Repo .rnex Isolation ------------------------------------------
 
@@ -956,42 +959,19 @@ YAML_EOF
   # ---- 2. Merge routing instructions into AGENTS.md -------------------------
   _target_agents="$_target_dir/AGENTS.md"
   merge_rnex_instructions "$_target_agents"
+  [ -f "$_target_dir/CLAUDE.md" ] && merge_rnex_instructions "$_target_dir/CLAUDE.md"
+  [ -f "$_target_dir/.cursorrules" ] && merge_rnex_instructions "$_target_dir/.cursorrules"
 
-  # ---- 3. Interactive assistant setup (if TTY and not -y) -------------------
-  if [ "$_non_interactive" -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
-    printf '\n%bOptional AI Assistant Routing Files:%b\n' "$_BOLD" "$_NC"
-    printf 'Would you like to generate routing files for other assistants?\n'
-    printf '  [1] Claude Code (CLAUDE.md)\n'
-    printf '  [2] Cursor (.cursorrules)\n'
-    printf '  [3] Both (CLAUDE.md & .cursorrules)\n'
-    printf '  [Enter to skip]\n'
-    printf 'Choice [1/2/3/skip]: '
-    read -r _choice || _choice=""
-    case "$_choice" in
-      1)
-        merge_rnex_instructions "$_target_dir/CLAUDE.md"
-        ;;
-      2)
-        merge_rnex_instructions "$_target_dir/.cursorrules"
-        ;;
-      3)
-        merge_rnex_instructions "$_target_dir/CLAUDE.md"
-        merge_rnex_instructions "$_target_dir/.cursorrules"
-        ;;
-      *)
-        ;;
-    esac
-  fi
-
-  # ---- 4. Create repos directory -------------------------------------------
+  # ---- 3. Create repos directory with .gitkeep -----------------------------
   _repos_dir="$_target_dir/repos"
   mkdir -p "$_repos_dir"
+  [ -f "$_repos_dir/.gitkeep" ] || touch "$_repos_dir/.gitkeep"
 
-  # ---- 5. Create internal .rnex directory ----------------------------------
+  # ---- 4. Create internal .rnex directory ----------------------------------
   mkdir -p "$_target_dir/.rnex"
   mkdir -p "$_target_dir/.rnex/plugins"
 
-  # ---- 6. Ensure repos/, .rnex/, and local configs are gitignored ---------
+  # ---- 5. Ensure repos/, .rnex/, and local configs are gitignored ---------
   reconcile_gitignore "$_target_dir"
 
   if [ "$_config_created" -eq 1 ]; then

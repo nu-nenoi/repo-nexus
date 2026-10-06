@@ -71,6 +71,7 @@ run_test "Initialize workspace with gitignore and routing instructions"
 [ -f "$TEST_WORKSPACE/rnex.yaml" ] || { fail "rnex.yaml missing"; exit 1; }
 [ -f "$TEST_WORKSPACE/AGENTS.md" ] || { fail "AGENTS.md missing"; exit 1; }
 [ -d "$TEST_WORKSPACE/repos" ] || { fail "repos/ dir missing"; exit 1; }
+[ -f "$TEST_WORKSPACE/repos/.gitkeep" ] || { fail "repos/.gitkeep missing"; exit 1; }
 [ -f "$TEST_WORKSPACE/.gitignore" ] || { fail ".gitignore missing"; exit 1; }
 grep -q 'repos/\*' "$TEST_WORKSPACE/.gitignore" || { fail "repos/* not in .gitignore"; exit 1; }
 grep -q '^\.rnex/' "$TEST_WORKSPACE/.gitignore" || { fail ".rnex/ not in .gitignore"; exit 1; }
