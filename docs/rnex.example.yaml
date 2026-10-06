@@ -24,6 +24,34 @@
 repos_dir: ./repos
 
 # ------------------------------------------------------------------------------
+# ai_instructions — Main AI instructions routing file
+# ------------------------------------------------------------------------------
+# Main instructions file created and managed by Repo Nexus.
+# Default: AGENTS.md (recognized by modern AI coding assistants)
+#
+# Examples:
+#   ai_instructions: AGENTS.md     # default standard
+#   ai_instructions: CLAUDE.md     # for Anthropic Claude Code CLI
+#   ai_instructions: GEMINI.md     # for Google Gemini / Antigravity CLI
+#
+ai_instructions: AGENTS.md
+
+# ------------------------------------------------------------------------------
+# code_workspace — VS Code / Cursor multi-root workspace file
+# ------------------------------------------------------------------------------
+# Automatically generates and maintains a multi-root .code-workspace file mapping
+# the workspace root and all active member repository clones.
+#
+# Default: false
+#
+# Examples:
+#   code_workspace: false                    # disabled (default)
+#   code_workspace: true                     # generates <workspace-name>.code-workspace
+#   code_workspace: workspace.code-workspace # custom filename
+#
+code_workspace: false
+
+# ------------------------------------------------------------------------------
 # plugins — Workspace plugins and AI instruction packs
 # ------------------------------------------------------------------------------
 # Plugins extend your workspace with curated AI guidelines, context rules,

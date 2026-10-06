@@ -118,6 +118,8 @@ require_workspace() {
     WORKSPACE_YAML="$_cfg_path"
     _init_local_yaml
     _load_repos_dir
+    _load_ai_instructions_file
+    _load_code_workspace
     log_info "Using workspace at ${_BOLD}$NEXUS_DIR${_NC} ${_DIM}(via config: $WORKSPACE_YAML)${_NC}"
     return 0
   fi
@@ -144,6 +146,8 @@ require_workspace() {
   fi
   _init_local_yaml
   _load_repos_dir
+  _load_ai_instructions_file
+  _load_code_workspace
 
   log_info "Using workspace at ${_BOLD}$NEXUS_DIR${_NC} ${_DIM}($(basename "$WORKSPACE_YAML") found)${_NC}"
 }
@@ -161,15 +165,53 @@ _init_local_yaml() {
 _load_repos_dir() {
   _rd=""
   if [ -f "$WORKSPACE_LOCAL_YAML" ]; then
-    _rd="$(awk '/^repos_dir:/ { sub(/^repos_dir:[ ]*/, ""); sub(/[ ]*#.*/, ""); print }' "$WORKSPACE_LOCAL_YAML")"
+    _rd="$(awk '/^repos_dir:/ { sub(/^repos_dir:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_LOCAL_YAML")"
   fi
   if [ -z "$_rd" ] && [ -f "$WORKSPACE_YAML" ]; then
-    _rd="$(awk '/^repos_dir:/ { sub(/^repos_dir:[ ]*/, ""); sub(/[ ]*#.*/, ""); print }' "$WORKSPACE_YAML")"
+    _rd="$(awk '/^repos_dir:/ { sub(/^repos_dir:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_YAML")"
   fi
   _rd="${_rd:-./repos}"
   case "$_rd" in
     /*) REPOS_DIR="$_rd" ;;
     *)  REPOS_DIR="$NEXUS_DIR/$_rd" ;;
+  esac
+}
+
+_load_ai_instructions_file() {
+  _aif=""
+  if [ -f "$WORKSPACE_LOCAL_YAML" ]; then
+    _aif="$(awk '/^(ai_instructions|ai_instructions_file):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_LOCAL_YAML")"
+  fi
+  if [ -z "$_aif" ] && [ -f "$WORKSPACE_YAML" ]; then
+    _aif="$(awk '/^(ai_instructions|ai_instructions_file):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_YAML")"
+  fi
+  _aif="$(echo "$_aif" | tr -d " \t\r\n'\"")"
+  AI_INSTRUCTIONS_FILE="${_aif:-AGENTS.md}"
+}
+
+_load_code_workspace() {
+  _cw=""
+  if [ -f "$WORKSPACE_LOCAL_YAML" ]; then
+    _cw="$(awk '/^(code_workspace|vscode_workspace):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_LOCAL_YAML")"
+  fi
+  if [ -z "$_cw" ] && [ -f "$WORKSPACE_YAML" ]; then
+    _cw="$(awk '/^(code_workspace|vscode_workspace):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_YAML")"
+  fi
+  _cw="$(echo "$_cw" | tr -d " \t\r\n'\"")"
+  case "$_cw" in
+    true|yes|1)
+      _ws_basename="$(basename "$NEXUS_DIR")"
+      CODE_WORKSPACE_FILE="$_ws_basename.code-workspace"
+      ;;
+    false|no|0|none|"")
+      CODE_WORKSPACE_FILE=""
+      ;;
+    *)
+      case "$_cw" in
+        *.code-workspace) CODE_WORKSPACE_FILE="$_cw" ;;
+        *) CODE_WORKSPACE_FILE="$_cw.code-workspace" ;;
+      esac
+      ;;
   esac
 }
 
@@ -902,6 +944,74 @@ merge_rnex_instructions() {
   log_ok "Merged Repo Nexus routing instructions with existing $(basename "$_dst")"
 }
 
+sync_code_workspace() {
+  [ -n "$CODE_WORKSPACE_FILE" ] || return 0
+  _ws_path="$NEXUS_DIR/$CODE_WORKSPACE_FILE"
+  _root_name="$(basename "$NEXUS_DIR")"
+
+  _f_tmp="$(mktemp)"
+
+  printf '    {\n      "name": "%s (Workspace Root)",\n      "path": "."\n    }' "$_root_name" > "$_f_tmp"
+
+  _repos_rel="${REPOS_DIR#$NEXUS_DIR/}"
+  _repos_rel="${_repos_rel#./}"
+  [ -n "$_repos_rel" ] || _repos_rel="repos"
+
+  yaml_list_repos | while read -r _rname; do
+    [ -n "$_rname" ] || continue
+    if yaml_repo_enabled "$_rname"; then
+      _rdir="$(resolve_repo_path "$_rname")"
+      if [ -d "$_rdir" ]; then
+        printf ',\n    {\n      "name": "%s",\n      "path": "%s/%s"\n    }' "$_rname" "$_repos_rel" "$_rname" >> "$_f_tmp"
+      fi
+    fi
+  done
+
+  if [ ! -f "$_ws_path" ]; then
+    {
+      printf '{\n  "folders": [\n'
+      cat "$_f_tmp"
+      printf '\n  ],\n  "settings": {\n    "search.exclude": {\n      "**/node_modules": true,\n      "**/.git": true\n    }\n  }\n}\n'
+    } > "$_ws_path"
+    rm -f "$_f_tmp"
+    log_ok "Created $CODE_WORKSPACE_FILE (VS Code / Cursor multi-root workspace)"
+    return 0
+  fi
+
+  if grep -q '"folders"[ ]*:' "$_ws_path" 2>/dev/null; then
+    _tmp_out="$(mktemp)"
+    awk -v f_src="$_f_tmp" '
+      BEGIN { in_f = 0 }
+      /"folders"[ ]*:[ ]*\[/ {
+        in_f = 1
+        print "  \"folders\": ["
+        while ((getline line < f_src) > 0) print line
+        close(f_src)
+        next
+      }
+      in_f {
+        if (/\]/) {
+          in_f = 0
+          has_comma = ($0 ~ /,[ ]*$/) ? "," : ""
+          print "  ]" has_comma
+        }
+        next
+      }
+      { print }
+    ' "$_ws_path" > "$_tmp_out" && mv "$_tmp_out" "$_ws_path"
+    rm -f "$_f_tmp"
+    log_ok "Updated folders in $CODE_WORKSPACE_FILE"
+  else
+    {
+      printf '{\n  "folders": [\n'
+      cat "$_f_tmp"
+      printf '\n  ],\n  "settings": {\n    "search.exclude": {\n      "**/node_modules": true,\n      "**/.git": true\n    }\n  }\n}\n'
+    } > "$_ws_path"
+    rm -f "$_f_tmp"
+    log_ok "Updated $CODE_WORKSPACE_FILE"
+  fi
+}
+
 # ============================================================================
 # Commands
 # ============================================================================
@@ -909,10 +1019,32 @@ merge_rnex_instructions() {
 cmd_init() {
   _non_interactive=0
   _target_dir=""
+  _cli_ai_instructions=""
+  _cli_code_workspace=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
       -y|--yes) _non_interactive=1 ;;
+      --ai|--instructions|--ai-instructions)
+        shift
+        _cli_ai_instructions="$1"
+        ;;
+      --code-workspace|--vscode)
+        _cli_code_workspace="true"
+        if [ $# -ge 2 ]; then
+          case "$2" in
+            -*) ;;
+            *)
+              case "$2" in
+                true|false|*.code-workspace)
+                  shift
+                  _cli_code_workspace="$1"
+                  ;;
+              esac
+              ;;
+          esac
+        fi
+        ;;
       *)
         if [ -z "$_target_dir" ]; then
           _target_dir="$1"
@@ -946,6 +1078,12 @@ cmd_init() {
 # Directory for member repository clones
 repos_dir: ./repos
 
+# Main AI instructions routing file (default: AGENTS.md; e.g. CLAUDE.md, GEMINI.md)
+ai_instructions: ${_cli_ai_instructions:-AGENTS.md}
+
+# VS Code / Cursor multi-root workspace file (default: false; e.g. true or workspace.code-workspace)
+code_workspace: ${_cli_code_workspace:-false}
+
 # Workspace plugins
 plugins:
 
@@ -956,11 +1094,22 @@ YAML_EOF
     log_ok "Created $RNEX_CONFIG_FILE"
   fi
 
-  # ---- 2. Merge routing instructions into AGENTS.md -------------------------
-  _target_agents="$_target_dir/AGENTS.md"
+  # ---- 2. Merge routing instructions into main AI instructions file ---------
+  _target_aif="$_cli_ai_instructions"
+  if [ -z "$_target_aif" ] && [ -f "$_target_dir/$RNEX_LOCAL_CONFIG_FILE" ]; then
+    _target_aif="$(awk '/^(ai_instructions|ai_instructions_file):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_target_dir/$RNEX_LOCAL_CONFIG_FILE")"
+  fi
+  if [ -z "$_target_aif" ] && [ -f "$_target_yaml" ]; then
+    _target_aif="$(awk '/^(ai_instructions|ai_instructions_file):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_target_yaml")"
+  fi
+  _target_aif="$(echo "$_target_aif" | tr -d " \t\r\n'\"")"
+  _target_aif="${_target_aif:-AGENTS.md}"
+
+  _target_agents="$_target_dir/$_target_aif"
   merge_rnex_instructions "$_target_agents"
-  [ -f "$_target_dir/CLAUDE.md" ] && merge_rnex_instructions "$_target_dir/CLAUDE.md"
-  [ -f "$_target_dir/.cursorrules" ] && merge_rnex_instructions "$_target_dir/.cursorrules"
+  [ -f "$_target_dir/AGENTS.md" ] && [ "$_target_aif" != "AGENTS.md" ] && merge_rnex_instructions "$_target_dir/AGENTS.md"
+  [ -f "$_target_dir/CLAUDE.md" ] && [ "$_target_aif" != "CLAUDE.md" ] && merge_rnex_instructions "$_target_dir/CLAUDE.md"
+  [ -f "$_target_dir/.cursorrules" ] && [ "$_target_aif" != ".cursorrules" ] && merge_rnex_instructions "$_target_dir/.cursorrules"
 
   # ---- 3. Create repos directory with .gitkeep -----------------------------
   _repos_dir="$_target_dir/repos"
@@ -974,10 +1123,50 @@ YAML_EOF
   # ---- 5. Ensure repos/, .rnex/, and local configs are gitignored ---------
   reconcile_gitignore "$_target_dir"
 
+  # ---- 6. Generate VS Code / Cursor workspace if configured ----------------
+  _target_cw="$_cli_code_workspace"
+  if [ -z "$_target_cw" ] && [ -f "$_target_dir/$RNEX_LOCAL_CONFIG_FILE" ]; then
+    _target_cw="$(awk '/^(code_workspace|vscode_workspace):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_target_dir/$RNEX_LOCAL_CONFIG_FILE")"
+  fi
+  if [ -z "$_target_cw" ] && [ -f "$_target_yaml" ]; then
+    _target_cw="$(awk '/^(code_workspace|vscode_workspace):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_target_yaml")"
+  fi
+  _target_cw="$(echo "$_target_cw" | tr -d " \t\r\n'\"")"
+  case "$_target_cw" in
+    true|yes|1)
+      _cw_name="$(basename "$_target_dir").code-workspace"
+      ;;
+    false|no|0|none|"")
+      _cw_name=""
+      ;;
+    *)
+      case "$_target_cw" in
+        *.code-workspace) _cw_name="$_target_cw" ;;
+        *) _cw_name="$_target_cw.code-workspace" ;;
+      esac
+      ;;
+  esac
+
+  if [ -n "$_cw_name" ]; then
+    _orig_nexus="$NEXUS_DIR"
+    _orig_repos="$REPOS_DIR"
+    _orig_cw="$CODE_WORKSPACE_FILE"
+    CODE_WORKSPACE_FILE="$_cw_name"
+    NEXUS_DIR="$_target_dir"
+    _repos_rel="repos"
+    REPOS_DIR="$_target_dir/$_repos_rel"
+    sync_code_workspace
+    NEXUS_DIR="$_orig_nexus"
+    REPOS_DIR="$_orig_repos"
+    CODE_WORKSPACE_FILE="$_orig_cw"
+  fi
+
   if [ "$_config_created" -eq 1 ]; then
     printf '\n'
     log_ok "Initialized Repo Nexus workspace at ${_BOLD}$_target_dir${_NC}"
-    log_dim "Created $RNEX_CONFIG_FILE, AGENTS.md, .rnex/, and repos/"
+    _created_items="$RNEX_CONFIG_FILE, $_target_aif, .rnex/, and repos/"
+    [ -n "$_cw_name" ] && _created_items="$_created_items (and $_cw_name)"
+    log_dim "Created $_created_items"
     printf '\n'
     log_info "Next steps:"
     log_dim "1. Add repositories with: rnex add <name> <git-url>"
@@ -1035,6 +1224,7 @@ cmd_add() {
     [ "$_rnex_dir" = "false" ] && yaml_set_local "$_name" "rnex_dir" "false"
     [ "$_enabled" = "false" ] && yaml_set_local "$_name" "enabled" "false"
     sync_repo_rnex "$_name"
+    sync_code_workspace
     printf '\n'
     log_ok "Registered repo '${_name}' in $(basename "$WORKSPACE_LOCAL_YAML")"
     return 0
@@ -1050,6 +1240,7 @@ cmd_add() {
       [ "$_rnex_dir" = "false" ] && yaml_set "$_name" "rnex_dir" "false"
       [ "$_enabled" = "false" ] && yaml_set "$_name" "enabled" "false"
       sync_repo_rnex "$_name"
+      sync_code_workspace
       printf '\n'
       log_ok "Updated repo '${_name}' in $(basename "$WORKSPACE_YAML")"
       return 0
@@ -1058,6 +1249,7 @@ cmd_add() {
 
   yaml_add_repo "$_name" "$_url" "$_rnex_dir" "$_enabled"
   sync_repo_rnex "$_name"
+  sync_code_workspace
   printf '\n'
   log_ok "Registered and added repo '${_name}'"
 }
@@ -1101,6 +1293,7 @@ cmd_clone() {
       fi
     fi
   done
+  sync_code_workspace
   printf '\n'
 }
 
@@ -1158,6 +1351,7 @@ cmd_enable() {
     log_ok "Enabled repo '$_name' in $(basename "$WORKSPACE_YAML")"
   fi
   sync_repo_rnex "$_name"
+  sync_code_workspace
 }
 
 cmd_disable() {
@@ -1181,6 +1375,7 @@ cmd_disable() {
     yaml_set "$_name" "enabled" "false"
     log_ok "Disabled repo '$_name' in $(basename "$WORKSPACE_YAML")"
   fi
+  sync_code_workspace
 }
 
 cmd_show() {
@@ -1205,6 +1400,7 @@ cmd_remove() {
   else
     log_ok "Unregistered repo '$_name'"
   fi
+  sync_code_workspace
 }
 
 cmd_list() {
@@ -1262,6 +1458,10 @@ cmd_status() {
     printf '  %b○%b Local Config:  %s %b(not found — using repo defaults)%b\n' "$_DIM" "$_NC" "$WORKSPACE_LOCAL_YAML" "$_DIM" "$_NC"
   fi
   printf '  %b●%b Repos Dir:     %s\n' "$_DIM" "$_NC" "$REPOS_DIR"
+  printf '  %b●%b AI File:       %s\n' "$_DIM" "$_NC" "$AI_INSTRUCTIONS_FILE"
+  if [ -n "$CODE_WORKSPACE_FILE" ]; then
+    printf '  %b●%b Workspace:   %s\n' "$_DIM" "$_NC" "$CODE_WORKSPACE_FILE"
+  fi
 
   _gi="$NEXUS_DIR/.gitignore"
   _gi_repos=0; _gi_rnex=0; _gi_local=0; _gi_has_counter=0
@@ -1280,17 +1480,29 @@ cmd_status() {
   printf '\n'
 
   printf '%bWorkspace AI Context (Routing):%b\n' "$_BOLD" "$_NC"
-  if [ -e "$NEXUS_DIR/AGENTS.md" ]; then
-    printf '  %b✓%b %s\n' "$_G" "$_NC" "AGENTS.md"
+  _main_ai="${AI_INSTRUCTIONS_FILE:-AGENTS.md}"
+  if [ -e "$NEXUS_DIR/$_main_ai" ]; then
+    printf '  %b✓%b %s %b(main instructions)%b\n' "$_G" "$_NC" "$_main_ai" "$_DIM" "$_NC"
   else
-    printf '  %b✗%b %s (missing from workspace root — run "rnex fix")\n' "$_R" "$_NC" "AGENTS.md"
+    printf '  %b✗%b %s %b(main instructions — MISSING; run "rnex fix" to create)%b\n' "$_R" "$_NC" "$_main_ai" "$_R" "$_NC"
   fi
-  if [ -f "$NEXUS_DIR/CLAUDE.md" ]; then
-    printf '  %b✓%b %s\n' "$_G" "$_NC" "CLAUDE.md"
+  for _aux_ai in "AGENTS.md" "CLAUDE.md" "GEMINI.md" ".cursorrules"; do
+    if [ "$_aux_ai" != "$_main_ai" ] && [ -f "$NEXUS_DIR/$_aux_ai" ]; then
+      printf '  %b✓%b %s\n' "$_G" "$_NC" "$_aux_ai"
+    fi
+  done
+  if [ -n "$CODE_WORKSPACE_FILE" ]; then
+    if [ -f "$NEXUS_DIR/$CODE_WORKSPACE_FILE" ]; then
+      printf '  %b✓%b %s %b(VS Code / Cursor workspace)%b\n' "$_G" "$_NC" "$CODE_WORKSPACE_FILE" "$_DIM" "$_NC"
+    else
+      printf '  %b✗%b %s %b(VS Code / Cursor workspace — MISSING; run "rnex fix" to create)%b\n' "$_R" "$_NC" "$CODE_WORKSPACE_FILE" "$_R" "$_NC"
+    fi
   fi
-  if [ -f "$NEXUS_DIR/.cursorrules" ]; then
-    printf '  %b✓%b %s\n' "$_G" "$_NC" ".cursorrules"
-  fi
+  for _found_cw in "$NEXUS_DIR"/*.code-workspace; do
+    if [ -f "$_found_cw" ] && [ "$(basename "$_found_cw")" != "$CODE_WORKSPACE_FILE" ]; then
+      printf '  %b✓%b %s %b(VS Code / Cursor workspace)%b\n' "$_G" "$_NC" "$(basename "$_found_cw")" "$_DIM" "$_NC"
+    fi
+  done
   if [ -d "$NEXUS_DIR/.rnex" ]; then
     printf '  %b✓%b %s\n' "$_G" "$_NC" ".rnex/"
   fi
@@ -1360,10 +1572,11 @@ cmd_fix() {
   # 1. Ensure .gitignore ignores repos/, .rnex/, and local configs, and strips legacy counters
   reconcile_gitignore "$NEXUS_DIR"
 
-  # 2. Reconcile instructions in AGENTS.md (and optional AI assistant files if present)
-  merge_rnex_instructions "$NEXUS_DIR/AGENTS.md"
-  [ -f "$NEXUS_DIR/CLAUDE.md" ] && merge_rnex_instructions "$NEXUS_DIR/CLAUDE.md"
-  [ -f "$NEXUS_DIR/.cursorrules" ] && merge_rnex_instructions "$NEXUS_DIR/.cursorrules"
+  # 2. Reconcile instructions in main AI instructions file (and optional AI assistant files if present)
+  merge_rnex_instructions "$NEXUS_DIR/$AI_INSTRUCTIONS_FILE"
+  [ -f "$NEXUS_DIR/AGENTS.md" ] && [ "$AI_INSTRUCTIONS_FILE" != "AGENTS.md" ] && merge_rnex_instructions "$NEXUS_DIR/AGENTS.md"
+  [ -f "$NEXUS_DIR/CLAUDE.md" ] && [ "$AI_INSTRUCTIONS_FILE" != "CLAUDE.md" ] && merge_rnex_instructions "$NEXUS_DIR/CLAUDE.md"
+  [ -f "$NEXUS_DIR/.cursorrules" ] && [ "$AI_INSTRUCTIONS_FILE" != ".cursorrules" ] && merge_rnex_instructions "$NEXUS_DIR/.cursorrules"
 
   # 3. Reconcile plugins
   sync_plugins
@@ -1380,6 +1593,9 @@ cmd_fix() {
       fi
     fi
   done
+
+  # 5. Reconcile VS Code / Cursor multi-root workspace if configured
+  sync_code_workspace
 
   log_ok "Fix complete — workspace, plugins, and member .rnex directories reconciled"
 }
@@ -1716,7 +1932,8 @@ cmd_help() {
     -v, --version           Show version
 
   WORKSPACE & SYSTEM SETUP
-    init [-y] [dir]         Initialize a new Repo Nexus workspace in current (or specified) dir
+    init [-y] [--ai <file>] [--code-workspace [file]] [dir]
+                            Initialize a new Repo Nexus workspace (default AI file: AGENTS.md)
     install [dir]           Install rnex & repo-nexus globally into ~/.local/bin (or custom dir)
     fix                     Reconcile workspace, plugins & member .rnex/ directories (alias: sync)
     completion <shell>      Generate shell completion script (bash, zsh, fish)

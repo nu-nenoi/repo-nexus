@@ -280,6 +280,60 @@ echo "$_status_out" | grep -q "Git Ignore:" || { fail "Status did not show Git I
 echo "$_status_out" | grep -q "Workspace AI Context" || { fail "Status did not show AI Context"; exit 1; }
 pass
 
+# --------------------------------------------------------------------------
+run_test "Status highlights missing custom ai_instructions file and fix creates it"
+echo "ai_instructions: GEMINI.md" >> "$TEST_WORKSPACE/rnex.yaml"
+_status_missing="$("$TEST_WORKSPACE/rnex" status 2>&1)"
+echo "$_status_missing" | grep -q "GEMINI.md" || { fail "Status did not show GEMINI.md in AI File"; exit 1; }
+echo "$_status_missing" | grep -q "MISSING" || { fail "Status did not highlight GEMINI.md as MISSING"; exit 1; }
+"$TEST_WORKSPACE/rnex" fix >/dev/null
+[ -f "$TEST_WORKSPACE/GEMINI.md" ] || { fail "rnex fix did not create configured GEMINI.md"; exit 1; }
+grep -q "Multi-Repo AI Workspace Context" "$TEST_WORKSPACE/GEMINI.md" || { fail "GEMINI.md missing routing instructions"; exit 1; }
+_status_fixed="$("$TEST_WORKSPACE/rnex" status 2>&1)"
+echo "$_status_fixed" | grep "GEMINI.md" | grep -q "main instructions" || { fail "Status did not show GEMINI.md as main instructions"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Init with --ai flag sets custom AI instructions file"
+TEST_AI_WS="$TEST_TMP/ai-workspace"
+mkdir -p "$TEST_AI_WS"
+cp "$CLI" "$TEST_AI_WS/rnex"
+chmod +x "$TEST_AI_WS/rnex"
+"$TEST_AI_WS/rnex" init -y --ai CLAUDE.md "$TEST_AI_WS" >/dev/null
+[ -f "$TEST_AI_WS/CLAUDE.md" ] || { fail "CLAUDE.md was not created by init --ai"; exit 1; }
+grep -q "ai_instructions:[ ]*CLAUDE.md" "$TEST_AI_WS/rnex.yaml" || { fail "ai_instructions not set in rnex.yaml"; exit 1; }
+grep -q "Multi-Repo AI Workspace Context" "$TEST_AI_WS/CLAUDE.md" || { fail "CLAUDE.md missing routing rules"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Configurable code_workspace generates and updates .code-workspace file"
+echo "code_workspace: true" >> "$TEST_WORKSPACE/rnex.yaml"
+_status_ws="$("$TEST_WORKSPACE/rnex" status 2>&1)"
+echo "$_status_ws" | grep -q "nexus-workspace.code-workspace" || { fail "Status did not detect configured code_workspace file"; exit 1; }
+echo "$_status_ws" | grep -q "MISSING" || { fail "Status did not highlight missing code-workspace"; exit 1; }
+"$TEST_WORKSPACE/rnex" fix >/dev/null
+[ -f "$TEST_WORKSPACE/nexus-workspace.code-workspace" ] || { fail "code-workspace file was not created by fix"; exit 1; }
+grep -q '"folders"' "$TEST_WORKSPACE/nexus-workspace.code-workspace" || { fail "folders array missing in workspace file"; exit 1; }
+grep -q 'nexus-workspace (Workspace Root)' "$TEST_WORKSPACE/nexus-workspace.code-workspace" || { fail "Root folder missing in workspace file"; exit 1; }
+grep -q 'local-app' "$TEST_WORKSPACE/nexus-workspace.code-workspace" || { fail "local-app missing in workspace file"; exit 1; }
+# Re-enable test-app and verify code-workspace updates automatically
+"$TEST_WORKSPACE/rnex" enable --local test-app >/dev/null
+grep -q 'test-app' "$TEST_WORKSPACE/nexus-workspace.code-workspace" || { fail "test-app not added to workspace file upon enable"; exit 1; }
+_status_ws_ok="$("$TEST_WORKSPACE/rnex" status 2>&1)"
+echo "$_status_ws_ok" | grep "nexus-workspace.code-workspace" | grep -q "VS Code / Cursor workspace" || { fail "Status did not mark workspace file valid"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Init with --code-workspace flag configures and creates workspace file"
+TEST_VS_WS="$TEST_TMP/vscode-workspace"
+mkdir -p "$TEST_VS_WS"
+cp "$CLI" "$TEST_VS_WS/rnex"
+chmod +x "$TEST_VS_WS/rnex"
+"$TEST_VS_WS/rnex" init -y --code-workspace "$TEST_VS_WS" >/dev/null
+[ -f "$TEST_VS_WS/vscode-workspace.code-workspace" ] || { fail ".code-workspace was not created by init --code-workspace"; exit 1; }
+grep -q "code_workspace:[ ]*true" "$TEST_VS_WS/rnex.yaml" || { fail "code_workspace not enabled in rnex.yaml"; exit 1; }
+pass
+
 # ==========================================================================
 
 echo ""
