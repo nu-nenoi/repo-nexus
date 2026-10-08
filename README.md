@@ -282,7 +282,7 @@ repos:
 ### Commands
 | Command | Description |
 |:---|:---|
-| `rnex init [-y] [dir]` | Initialize a new Virtual Meta-Repo workspace in current (or target) directory |
+| `rnex init [-y] [--ai <file>] [--code-workspace [file]] [--hooks\|--no-hooks] [dir]` | Initialize a new Virtual Meta-Repo workspace in current (or target) directory |
 | `rnex install [dir]` | Install `rnex` & `repo-nexus` globally into `~/.local/bin` (or custom dir) |
 | `rnex add [--local] [--disabled] <name> <git-url>` | Register and clone repo into `./repos/<name>` |
 | `rnex clone` | Clone all missing enabled repositories declared in `rnex.yaml` |
@@ -291,9 +291,11 @@ repos:
 | `rnex enable [--local] <name>` | Enable a repository in active workspace |
 | `rnex disable [--local] <name>` | Disable a repository from active workspace |
 | `rnex list` | List all member repositories with clone state, active branch, and `.rnex` status |
-| `rnex status` | Inspect workspace health, active repos, config loaded, and plugins |
+| `rnex status` | Inspect workspace health, active repos, config loaded, git hooks, and plugins |
 | `rnex rnex-dir <enable\|disable> <name>` | Toggle `.rnex/` directory integration for a member repository |
-| `rnex fix` (or `sync`) | Reconcile workspace repositories, plugins, and member `.rnex/` directories |
+| `rnex fix [-y] [--quiet]` (or `sync`) | Reconcile workspace repositories, plugins, prompts, and member `.rnex/` directories |
+| `rnex update [-y]` (or `upgrade`) | Safely upgrade workspace configuration schema and routing instructions |
+| `rnex hooks <install\|uninstall\|status>` | Manage config-driven automated Git hooks (`.rnex/hooks`) |
 | `rnex plugin <list\|info\|enable\|disable>` | Manage workspace plugins |
 | `rnex completion <bash\|zsh\|fish>` | Generate shell auto-completion script |
 

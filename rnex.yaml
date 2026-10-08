@@ -1,6 +1,8 @@
 # Repo Nexus workspace configuration
 # See docs/rnex.example.yaml for a comprehensive example with all options.
 
+version: 0.5.0
+
 # Directory for member repository clones (relative to this file or absolute)
 repos_dir: ./repos
 

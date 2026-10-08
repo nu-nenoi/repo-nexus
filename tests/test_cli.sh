@@ -334,6 +334,119 @@ chmod +x "$TEST_VS_WS/rnex"
 grep -q "code_workspace:[ ]*true" "$TEST_VS_WS/rnex.yaml" || { fail "code_workspace not enabled in rnex.yaml"; exit 1; }
 pass
 
+# --------------------------------------------------------------------------
+run_test "Version-aware upgrade in rnex fix and update/upgrade commands"
+TEST_UPGRADE_WS="$TEST_TMP/upgrade-workspace"
+mkdir -p "$TEST_UPGRADE_WS"
+cp "$CLI" "$TEST_UPGRADE_WS/rnex"
+chmod +x "$TEST_UPGRADE_WS/rnex"
+cp -r "$DIR/toolkit" "$TEST_UPGRADE_WS/toolkit"
+cp "$DIR/package.json" "$TEST_UPGRADE_WS/package.json"
+
+# Write older pre-v0.5.0 configuration (missing version & code_workspace)
+cat <<'OLD_YAML' > "$TEST_UPGRADE_WS/rnex.yaml"
+# Pre-versioned workspace configuration
+repos_dir: ./repos
+ai_instructions: AGENTS.md
+plugins:
+repos:
+OLD_YAML
+
+cat <<'OLD_AGENTS' > "$TEST_UPGRADE_WS/AGENTS.md"
+<!-- REPO-NEXUS:START -->
+# Multi-Repo AI Workspace Context
+Legacy instructions without mandatory startup
+<!-- REPO-NEXUS:END -->
+OLD_AGENTS
+
+# Fix with -y should detect missing/older version, upgrade config, and reconcile instructions
+(cd "$TEST_UPGRADE_WS" && ./rnex fix -y >/dev/null)
+grep -q "version:[ ]*0.5.0" "$TEST_UPGRADE_WS/rnex.yaml" || { fail "rnex fix -y did not add version 0.5.0 to rnex.yaml"; exit 1; }
+grep -q "code_workspace:[ ]*false" "$TEST_UPGRADE_WS/rnex.yaml" || { fail "rnex fix -y did not populate missing code_workspace key"; exit 1; }
+grep -q "Mandatory Session Startup" "$TEST_UPGRADE_WS/AGENTS.md" || { fail "AGENTS.md not updated with Mandatory Session Startup"; exit 1; }
+grep -q "\.rnex/prompts/index\.md" "$TEST_UPGRADE_WS/AGENTS.md" || { fail "AGENTS.md missing prompts catalog reference"; exit 1; }
+
+# Running update when already at current version should report up to date
+_up_out="$(cd "$TEST_UPGRADE_WS" && ./rnex update 2>&1)"
+echo "$_up_out" | grep -q "already up to date" || { fail "rnex update did not report already up to date"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Standardized prompts synced to .rnex/prompts/ and indexed"
+[ -d "$TEST_WORKSPACE/.rnex/prompts" ] || { fail ".rnex/prompts directory was not created"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/prompts/index.md" ] || { fail "prompts/index.md missing"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/prompts/rnex-cross-repo-feature.md" ] || { fail "rnex-cross-repo-feature.md missing"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/prompts/rnex-workspace-audit.md" ] || { fail "rnex-workspace-audit.md missing"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/prompts/rnex-wiki-ingest.md" ] || { fail "rnex-wiki-ingest.md missing"; exit 1; }
+[ -f "$TEST_WORKSPACE/.rnex/prompts/rnex-wiki-lint.md" ] || { fail "rnex-wiki-lint.md missing"; exit 1; }
+# Verify member repos do not contain workspace prompts
+[ ! -d "$TEST_WORKSPACE/repos/test-app/.rnex/prompts" ] || { fail "Workspace prompts leaked into member repo .rnex"; exit 1; }
+# Verify status highlights prompts catalog
+_status_prompts="$("$TEST_WORKSPACE/rnex" status 2>&1)"
+echo "$_status_prompts" | grep -q "prompts catalog" || { fail "Status does not highlight prompts catalog"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Git hooks install, status, dispatch, and uninstall"
+TEST_HOOKS_WS="$TEST_TMP/hooks-workspace"
+mkdir -p "$TEST_HOOKS_WS"
+cp "$CLI" "$TEST_HOOKS_WS/rnex"
+chmod +x "$TEST_HOOKS_WS/rnex"
+cp -r "$DIR/toolkit" "$TEST_HOOKS_WS/toolkit"
+cp "$DIR/package.json" "$TEST_HOOKS_WS/package.json"
+git -C "$TEST_HOOKS_WS" init -q
+
+# Initialize without hooks first
+(cd "$TEST_HOOKS_WS" && ./rnex init -y --no-hooks >/dev/null)
+_pre_status="$(cd "$TEST_HOOKS_WS" && ./rnex status 2>&1)"
+echo "$_pre_status" | grep -q "Git Hooks:[ ]*not configured" || { fail "Status did not report unconfigured hooks"; exit 1; }
+
+# Install hooks
+(cd "$TEST_HOOKS_WS" && ./rnex hooks install >/dev/null)
+[ -d "$TEST_HOOKS_WS/.rnex/hooks" ] || { fail ".rnex/hooks directory missing"; exit 1; }
+[ -x "$TEST_HOOKS_WS/.rnex/hooks/post-merge" ] || { fail "post-merge hook missing or not executable"; exit 1; }
+[ -x "$TEST_HOOKS_WS/.rnex/hooks/post-commit" ] || { fail "post-commit hook missing or not executable"; exit 1; }
+[ -x "$TEST_HOOKS_WS/.rnex/hooks/pre-commit" ] || { fail "pre-commit hook missing or not executable"; exit 1; }
+[ -x "$TEST_HOOKS_WS/.rnex/hooks/pre-push" ] || { fail "pre-push hook missing or not executable"; exit 1; }
+
+_hooks_path_val="$(git -C "$TEST_HOOKS_WS" config --get core.hooksPath)"
+[ "$_hooks_path_val" = ".rnex/hooks" ] || { fail "core.hooksPath not set to .rnex/hooks (got: $_hooks_path_val)"; exit 1; }
+
+# Verify hooks status command
+_h_status="$(cd "$TEST_HOOKS_WS" && ./rnex hooks status 2>&1)"
+echo "$_h_status" | grep -q "core.hooksPath: .rnex/hooks" || { fail "hooks status did not report active core.hooksPath"; exit 1; }
+echo "$_h_status" | grep -q "post-merge[ ]*(installed)" || { fail "hooks status did not report post-merge installed"; exit 1; }
+
+# Verify status integration
+_post_status="$(cd "$TEST_HOOKS_WS" && ./rnex status 2>&1)"
+echo "$_post_status" | grep -q "Git Hooks:[ ]*active" || { fail "Status did not report active git hooks"; exit 1; }
+
+# Test hooks run post-merge invokes fix quietly
+(cd "$TEST_HOOKS_WS" && ./rnex hooks run post-merge >/dev/null)
+
+# Uninstall hooks
+(cd "$TEST_HOOKS_WS" && ./rnex hooks uninstall >/dev/null)
+[ ! -d "$TEST_HOOKS_WS/.rnex/hooks" ] || { fail ".rnex/hooks still exists after uninstall"; exit 1; }
+_uninstalled_hp="$(git -C "$TEST_HOOKS_WS" config --get core.hooksPath 2>/dev/null || true)"
+[ -z "$_uninstalled_hp" ] || { fail "core.hooksPath still set after uninstall"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Init with git repo configures hooks automatically"
+TEST_INIT_HOOKS="$TEST_TMP/init-hooks-ws"
+mkdir -p "$TEST_INIT_HOOKS"
+cp "$CLI" "$TEST_INIT_HOOKS/rnex"
+chmod +x "$TEST_INIT_HOOKS/rnex"
+cp -r "$DIR/toolkit" "$TEST_INIT_HOOKS/toolkit"
+cp "$DIR/package.json" "$TEST_INIT_HOOKS/package.json"
+git -C "$TEST_INIT_HOOKS" init -q
+
+"$TEST_INIT_HOOKS/rnex" init -y "$TEST_INIT_HOOKS" >/dev/null
+_init_hp="$(git -C "$TEST_INIT_HOOKS" config --get core.hooksPath 2>/dev/null || true)"
+[ "$_init_hp" = ".rnex/hooks" ] || { fail "init -y did not configure Git hooks in git repo"; exit 1; }
+[ -x "$TEST_INIT_HOOKS/.rnex/hooks/post-merge" ] || { fail "init -y did not create executable post-merge hook"; exit 1; }
+pass
+
 # ==========================================================================
 
 echo ""
