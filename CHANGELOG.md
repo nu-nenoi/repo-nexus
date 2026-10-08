@@ -5,6 +5,15 @@ All notable changes to Repo Nexus (`rnex`) will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-10-08
+
+### Added
+- Comprehensive CLI Reference Manual (`docs/CLI.md`) documenting all workspace lifecycle commands, member repository operations, automated Git hooks, scoped plugins, standardized prompts catalog, and shell completion recipes.
+
+### Fixed
+- Dynamic version matching in test suite (`tests/test_cli.sh`, Test 26) resolving hardcoded version assertion on `package.json` bumps.
+- Default version fallback in `rnex` CLI aligned with `package.json`.
+
 ## [0.5.0] - 2026-10-08
 
 ### Added

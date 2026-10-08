@@ -361,7 +361,8 @@ OLD_AGENTS
 
 # Fix with -y should detect missing/older version, upgrade config, and reconcile instructions
 (cd "$TEST_UPGRADE_WS" && ./rnex fix -y >/dev/null)
-grep -q "version:[ ]*0.5.0" "$TEST_UPGRADE_WS/rnex.yaml" || { fail "rnex fix -y did not add version 0.5.0 to rnex.yaml"; exit 1; }
+_ws_cli_ver="$("$TEST_UPGRADE_WS/rnex" version 2>&1 | awk '{print $NF}')"
+grep -q "version:[ ]*$_ws_cli_ver" "$TEST_UPGRADE_WS/rnex.yaml" || { fail "rnex fix -y did not add version $_ws_cli_ver to rnex.yaml"; exit 1; }
 grep -q "code_workspace:[ ]*false" "$TEST_UPGRADE_WS/rnex.yaml" || { fail "rnex fix -y did not populate missing code_workspace key"; exit 1; }
 grep -q "Mandatory Session Startup" "$TEST_UPGRADE_WS/AGENTS.md" || { fail "AGENTS.md not updated with Mandatory Session Startup"; exit 1; }
 grep -q "\.rnex/prompts/index\.md" "$TEST_UPGRADE_WS/AGENTS.md" || { fail "AGENTS.md missing prompts catalog reference"; exit 1; }
