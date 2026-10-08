@@ -6,6 +6,7 @@
 [![POSIX Compatible](https://img.shields.io/badge/POSIX-compatible-success)](#)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](#)
 [![FAQ](https://img.shields.io/badge/docs-FAQ-blue.svg)](docs/FAQ.md)
+[![CLI Reference](https://img.shields.io/badge/docs-CLI%20Reference-blue.svg)](docs/CLI.md)
 
 A **simple, lightweight Virtual Meta-Repo companion** for multi-repo workspaces and shared AI context. It organizes independent repositories into a unified workspace and shares lean routing instructions (`AGENTS.md`) **without Git submodules, monorepo migrations, or symlink fragility**.
 
@@ -17,7 +18,9 @@ A **simple, lightweight Virtual Meta-Repo companion** for multi-repo workspaces 
 - **Scoped Plugins & Context Packs**: Modular plugin packages scoped under `.rnex/plugins/<plugin-name>/` with support for domain directories (e.g. `raw/` and `wiki/` for `karpathy-llm`).
 - **Zero Dependencies**: Pure POSIX shell CLI (`rnex`). Works out of the box across macOS, Linux, and Windows (WSL/Git Bash).
 
-> 💡 **Have questions?** Check out the **[Frequently Asked Questions (FAQ)](docs/FAQ.md)** for architecture deep dives, Git workflows, and AI context strategies.
+> 💡 **Documentation & Guides:**
+> - Check out the **[CLI Reference Manual](docs/CLI.md)** for complete command syntax, flags, Git hooks, plugins, and prompts.
+> - Check out the **[Frequently Asked Questions (FAQ)](docs/FAQ.md)** for architecture deep dives, Git workflows, and AI context strategies.
 
 ---
 
@@ -32,6 +35,7 @@ A **simple, lightweight Virtual Meta-Repo companion** for multi-repo workspaces 
 - [Plugins & Scoped Context Packs](#plugins--scoped-context-packs)
 - [Two-Level Configuration (`rnex.yaml` & `.local.rnex.yaml`)](#two-level-configuration)
 - [CLI Command Reference](#cli-command-reference)
+- [Full CLI Reference Manual (docs/CLI.md)](docs/CLI.md)
 - [Shell Auto-Completion](#shell-auto-completion)
 - [Project Structure](#project-structure)
 - [Running Tests](#running-tests)
@@ -272,6 +276,8 @@ repos:
 
 ## CLI Command Reference
 
+> 📖 **Full Manual Available:** See the comprehensive **[CLI Reference Manual](docs/CLI.md)** for exhaustive details, deep dives into every command and flag, lifecycle behaviors, automated Git hooks, scoped plugins, standardized prompts catalog, and shell completion recipes.
+
 ### Global Options
 | Option | Description |
 |:---|:---|
@@ -282,7 +288,7 @@ repos:
 ### Commands
 | Command | Description |
 |:---|:---|
-| `rnex init [-y] [dir]` | Initialize a new Virtual Meta-Repo workspace in current (or target) directory |
+| `rnex init [-y] [--ai <file>] [--code-workspace [file]] [--hooks\|--no-hooks] [dir]` | Initialize a new Virtual Meta-Repo workspace in current (or target) directory |
 | `rnex install [dir]` | Install `rnex` & `repo-nexus` globally into `~/.local/bin` (or custom dir) |
 | `rnex add [--local] [--disabled] <name> <git-url>` | Register and clone repo into `./repos/<name>` |
 | `rnex clone` | Clone all missing enabled repositories declared in `rnex.yaml` |
@@ -291,9 +297,11 @@ repos:
 | `rnex enable [--local] <name>` | Enable a repository in active workspace |
 | `rnex disable [--local] <name>` | Disable a repository from active workspace |
 | `rnex list` | List all member repositories with clone state, active branch, and `.rnex` status |
-| `rnex status` | Inspect workspace health, active repos, config loaded, and plugins |
+| `rnex status` | Inspect workspace health, active repos, config loaded, git hooks, and plugins |
 | `rnex rnex-dir <enable\|disable> <name>` | Toggle `.rnex/` directory integration for a member repository |
-| `rnex fix` (or `sync`) | Reconcile workspace repositories, plugins, and member `.rnex/` directories |
+| `rnex fix [-y] [--quiet]` (or `sync`) | Reconcile workspace repositories, plugins, prompts, and member `.rnex/` directories |
+| `rnex update [-y]` (or `upgrade`) | Safely upgrade workspace configuration schema and routing instructions |
+| `rnex hooks <install\|uninstall\|status>` | Manage config-driven automated Git hooks (`.rnex/hooks`) |
 | `rnex plugin <list\|info\|enable\|disable>` | Manage workspace plugins |
 | `rnex completion <bash\|zsh\|fish>` | Generate shell auto-completion script |
 
@@ -330,17 +338,20 @@ repo-nexus/
 ├── package.json                    # npm package manifest (single version source of truth)
 ├── rnex                            # CLI executable (POSIX shell)
 ├── AGENTS.md                       # Routing-only universal AI instructions
+├── CHANGELOG.md                    # Release history and migration notes
 ├── docs/
 │   ├── AGENTS.sample.md            # Template for routing-only AGENTS.md
+│   ├── CLI.md                      # Comprehensive CLI reference manual
 │   ├── FAQ.md                      # Frequently Asked Questions
 │   └── rnex.example.yaml           # Full config reference with examples
 ├── .github/
 │   └── workflows/ci.yml            # GitHub Actions CI workflow
 ├── tests/
 │   └── test_cli.sh                 # Automated CLI test suite
-├── toolkit/                        # Shared plugins and templates
-│   └── plugins/
-│       └── karpathy-llm/           # Scoped Karpathy LLM plugin
+├── toolkit/                        # Shared plugins, prompts, and templates
+│   ├── plugins/
+│   │   └── karpathy-llm/           # Scoped Karpathy LLM plugin
+│   └── prompts/                    # Standardized AI operational prompts
 └── README.md
 ```
 

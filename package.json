@@ -1,6 +1,6 @@
 {
   "name": "repo-nexus",
-  "version": "0.4.7",
+  "version": "0.5.1",
   "description": "Lightweight, zero-dependency Virtual Meta-Repo companion for multi-repo workspaces and shared AI context (no git submodules)",
   "bin": {
     "repo-nexus": "rnex",
@@ -13,6 +13,7 @@
   "files": [
     "rnex",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "docs/",
     "toolkit/"
@@ -28,14 +29,8 @@
   "keywords": [
     "rnex",
     "repo-nexus",
-    "rnex",
-    "repo-nexus",
     "multi-repo",
     "monorepo",
-    "ai-agents",
-    "agents.md",
-    "cursor-rules",
-    "claude-code",
     "ai-agents",
     "agents.md",
     "cursor-rules",
