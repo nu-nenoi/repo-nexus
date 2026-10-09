@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Interactive `rnex init` determines and records `git_hooks` preference upfront in new workspaces.
   - Workspace schema migration in `rnex update` and `rnex fix -y` non-destructively inserts `git_hooks` into older configurations.
   - `rnex status` and `rnex hooks status` display configuration state alongside runtime Git hooks status.
+- **Modular GitHub Copilot Plugin & Extensible Provider Sync (`plugins: copilot: ...`)**:
+  - Encapsulated GitHub Copilot integration as a built-in Repo Nexus plugin (`copilot`) located in `toolkit/plugins/copilot/`.
+  - Extensible configuration options per provider under `plugins:` in `rnex.yaml` and `.local.rnex.yaml`:
+    - `prompts: true|false`: Syncs operational prompts into `.github/prompts/*.prompt.md` with YAML frontmatter for VS Code Copilot Chat prompt picker & slash commands.
+    - `skills: true|false`: Syncs agent skills into `.github/skills/<name>/SKILL.md` for Copilot Agent mode & `gh skill`.
+    - `instructions: true|false`: Synthesizes workspace routing and active plugin guidelines into `.github/copilot-instructions.md`, preserving manual user instructions outside `<!-- REPO-NEXUS -->` markers.
+    - `agents: true|false`: Syncs active plugin custom agents into `.github/agents/*.agent.md` and Copilot skills.
+    - `enabled: false`: Allows local machine overrides in `.local.rnex.yaml` without altering team configuration.
+  - Decoupled cross-plugin asset discovery: `copilot` provider inspects all active plugins (e.g. `karpathy-llm`) and mirrors their prompts, workflows, skills, agents, and guidelines without introducing plugin dependencies.
+  - CLI management via `rnex plugin enable [--local] copilot`, `rnex plugin disable [--local] copilot`, and `rnex plugin info copilot`.
+  - Added `--copilot` initialization flag to `rnex init` enabling the plugin in newly generated workspaces.
+  - Clean reconciliation in `rnex fix`: safely removes `.github/prompts/`, `.github/skills/`, `.github/agents/`, and `.github/copilot-instructions.md` when disabled or when specific target options are toggled off.
+  - Diagnostics and configurable options reporting integrated into `rnex status`.
 
 ### Fixed
 - **Git Hooks Self-Rewrite & Wrapper Preservation**:

@@ -539,6 +539,148 @@ _inode_after="$(ls -i "$TEST_WRAPPER_WS/.rnex/hooks/post-merge" | awk '{print $1
 [ "$_inode_before" = "$_inode_after" ] || { fail "post-merge hook was rewritten/replaced during hook execution (self-rewrite bug)"; exit 1; }
 pass
 
+# --------------------------------------------------------------------------
+# --------------------------------------------------------------------------
+run_test "Configurable GitHub Copilot plugin prompts and skills sync"
+TEST_COPILOT_WS="$TEST_TMP/copilot-ws"
+mkdir -p "$TEST_COPILOT_WS"
+cp "$CLI" "$TEST_COPILOT_WS/rnex"
+chmod +x "$TEST_COPILOT_WS/rnex"
+cp -r "$DIR/toolkit" "$TEST_COPILOT_WS/toolkit"
+cp "$DIR/package.json" "$TEST_COPILOT_WS/package.json"
+git -C "$TEST_COPILOT_WS" init -q
+
+"$TEST_COPILOT_WS/rnex" init -y --copilot "$TEST_COPILOT_WS" >/dev/null
+grep -q "copilot:" "$TEST_COPILOT_WS/rnex.yaml" || { fail "init --copilot did not write copilot plugin to rnex.yaml"; exit 1; }
+
+# Verify .github/prompts/*.prompt.md files created with frontmatter
+[ -d "$TEST_COPILOT_WS/.github/prompts" ] || { fail ".github/prompts directory missing"; exit 1; }
+[ -f "$TEST_COPILOT_WS/.github/prompts/rnex-cross-repo-feature.prompt.md" ] || { fail "rnex-cross-repo-feature.prompt.md missing"; exit 1; }
+grep -q "name: rnex-cross-repo-feature" "$TEST_COPILOT_WS/.github/prompts/rnex-cross-repo-feature.prompt.md" || { fail "Missing frontmatter in .prompt.md"; exit 1; }
+
+# Verify .github/skills/rnex-*/SKILL.md created
+[ -d "$TEST_COPILOT_WS/.github/skills/rnex-cross-repo-feature" ] || { fail "rnex-cross-repo-feature skill folder missing"; exit 1; }
+[ -f "$TEST_COPILOT_WS/.github/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "rnex-cross-repo-feature SKILL.md missing"; exit 1; }
+grep -q "name: rnex-cross-repo-feature" "$TEST_COPILOT_WS/.github/skills/rnex-cross-repo-feature/SKILL.md" || { fail "Missing frontmatter in SKILL.md"; exit 1; }
+
+# Verify .github/copilot-instructions.md created
+[ -f "$TEST_COPILOT_WS/.github/copilot-instructions.md" ] || { fail ".github/copilot-instructions.md missing"; exit 1; }
+grep -q "REPO-NEXUS:START" "$TEST_COPILOT_WS/.github/copilot-instructions.md" || { fail "Missing REPO-NEXUS:START marker in copilot-instructions.md"; exit 1; }
+
+# Verify plugin list and plugin info
+_cop_list="$(cd "$TEST_COPILOT_WS" && ./rnex plugin list 2>&1)"
+echo "$_cop_list" | grep -q "copilot" || { fail "plugin list did not list copilot plugin"; exit 1; }
+_cop_info="$(cd "$TEST_COPILOT_WS" && ./rnex plugin info copilot 2>&1)"
+echo "$_cop_info" | grep -q "prompts: true|false" || { fail "plugin info did not show prompts option"; exit 1; }
+echo "$_cop_info" | grep -q "instructions: true|false" || { fail "plugin info did not show instructions option"; exit 1; }
+echo "$_cop_info" | grep -q "agents: true|false" || { fail "plugin info did not show agents option"; exit 1; }
+
+# Verify status highlights copilot plugin, options, and routing
+_cop_status="$(cd "$TEST_COPILOT_WS" && ./rnex status 2>&1)"
+echo "$_cop_status" | grep -q "copilot" || { fail "Status did not report copilot plugin"; exit 1; }
+echo "$_cop_status" | grep -q ".github/prompts/" || { fail "Status did not report .github/prompts/"; exit 1; }
+echo "$_cop_status" | grep -q ".github/copilot-instructions.md" || { fail "Status did not report .github/copilot-instructions.md"; exit 1; }
+echo "$_cop_status" | grep -q "instructions=true" || { fail "Status did not report copilot instructions option"; exit 1; }
+
+# Enable karpathy-llm alongside copilot to test decoupled cross-plugin mirroring
+(cd "$TEST_COPILOT_WS" && ./rnex plugin enable karpathy-llm >/dev/null)
+(cd "$TEST_COPILOT_WS" && ./rnex fix -y --quiet >/dev/null)
+
+# Verify Karpathy prompts mirrored to .github/prompts/
+[ -f "$TEST_COPILOT_WS/.github/prompts/wiki-ingest.prompt.md" ] || { fail "wiki-ingest prompt not mirrored to .github/prompts/"; exit 1; }
+[ -f "$TEST_COPILOT_WS/.github/prompts/wiki-lint.prompt.md" ] || { fail "wiki-lint prompt not mirrored to .github/prompts/"; exit 1; }
+grep -q "name: wiki-ingest" "$TEST_COPILOT_WS/.github/prompts/wiki-ingest.prompt.md" || { fail "wiki-ingest prompt missing frontmatter"; exit 1; }
+
+# Verify Karpathy skills mirrored to .github/skills/
+[ -f "$TEST_COPILOT_WS/.github/skills/wiki-ingest/SKILL.md" ] || { fail "wiki-ingest skill not mirrored to .github/skills/"; exit 1; }
+[ -f "$TEST_COPILOT_WS/.github/skills/wiki-lint/SKILL.md" ] || { fail "wiki-lint skill not mirrored to .github/skills/"; exit 1; }
+
+# Verify Karpathy agents mirrored to .github/agents/ and skills
+[ -f "$TEST_COPILOT_WS/.github/agents/wiki-curator.agent.md" ] || { fail "wiki-curator agent not mirrored to .github/agents/"; exit 1; }
+[ -f "$TEST_COPILOT_WS/.github/skills/wiki-curator/SKILL.md" ] || { fail "wiki-curator skill not mirrored to .github/skills/"; exit 1; }
+
+# Verify Karpathy rules and instructions merged into .github/copilot-instructions.md
+grep -q "Plugin: karpathy-llm" "$TEST_COPILOT_WS/.github/copilot-instructions.md" || { fail "Karpathy guidelines missing from copilot-instructions.md"; exit 1; }
+
+# Test preserving user custom content outside REPO-NEXUS delimiters in copilot-instructions.md
+printf '# Custom Developer Section\n\n' | cat - "$TEST_COPILOT_WS/.github/copilot-instructions.md" > "$TEST_COPILOT_WS/.github/copilot-instructions.md.tmp"
+mv "$TEST_COPILOT_WS/.github/copilot-instructions.md.tmp" "$TEST_COPILOT_WS/.github/copilot-instructions.md"
+(cd "$TEST_COPILOT_WS" && ./rnex fix -y --quiet >/dev/null)
+grep -q "Custom Developer Section" "$TEST_COPILOT_WS/.github/copilot-instructions.md" || { fail "User custom content lost during copilot-instructions sync"; exit 1; }
+grep -q "Plugin: karpathy-llm" "$TEST_COPILOT_WS/.github/copilot-instructions.md" || { fail "Plugin instructions lost during copilot-instructions sync"; exit 1; }
+
+# Granular option test: disable instructions only (prompts, skills, agents remain)
+cat <<'EOF' > "$TEST_COPILOT_WS/rnex.yaml"
+version: 0.5.1
+repos_dir: ./repos
+ai_instructions: AGENTS.md
+code_workspace: false
+git_hooks: false
+plugins:
+  copilot:
+    prompts: true
+    skills: true
+    instructions: false
+    agents: true
+  karpathy-llm: {}
+repos:
+EOF
+(cd "$TEST_COPILOT_WS" && ./rnex fix -y --quiet >/dev/null)
+grep -q "Custom Developer Section" "$TEST_COPILOT_WS/.github/copilot-instructions.md" || { fail "Custom developer instructions lost when instructions: false"; exit 1; }
+grep -q "REPO-NEXUS:START" "$TEST_COPILOT_WS/.github/copilot-instructions.md" && { fail "REPO-NEXUS block not removed when instructions: false"; exit 1; }
+
+# Granular option test: disable agents only
+cat <<'EOF' > "$TEST_COPILOT_WS/rnex.yaml"
+version: 0.5.1
+repos_dir: ./repos
+ai_instructions: AGENTS.md
+code_workspace: false
+git_hooks: false
+plugins:
+  copilot:
+    prompts: true
+    skills: true
+    instructions: false
+    agents: false
+  karpathy-llm: {}
+repos:
+EOF
+(cd "$TEST_COPILOT_WS" && ./rnex fix -y --quiet >/dev/null)
+[ ! -d "$TEST_COPILOT_WS/.github/agents" ] || { fail "Agents directory not cleaned up when agents: false"; exit 1; }
+
+# Granular option test: disable prompts only (skills remain)
+cat <<'EOF' > "$TEST_COPILOT_WS/rnex.yaml"
+version: 0.5.1
+repos_dir: ./repos
+ai_instructions: AGENTS.md
+code_workspace: false
+git_hooks: false
+plugins:
+  copilot:
+    prompts: false
+    skills: true
+    instructions: false
+    agents: false
+  karpathy-llm: {}
+repos:
+EOF
+(cd "$TEST_COPILOT_WS" && ./rnex fix -y --quiet >/dev/null)
+[ ! -f "$TEST_COPILOT_WS/.github/prompts/rnex-cross-repo-feature.prompt.md" ] || { fail "Base prompts not cleaned up when prompts: false"; exit 1; }
+[ ! -f "$TEST_COPILOT_WS/.github/prompts/wiki-ingest.prompt.md" ] || { fail "Plugin prompts not cleaned up when prompts: false"; exit 1; }
+[ -f "$TEST_COPILOT_WS/.github/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "Skills removed when skills: true"; exit 1; }
+
+# Disable copilot via local override and run fix
+(cd "$TEST_COPILOT_WS" && ./rnex plugin disable --local copilot >/dev/null)
+(cd "$TEST_COPILOT_WS" && ./rnex fix -y --quiet >/dev/null)
+[ ! -f "$TEST_COPILOT_WS/.github/prompts/rnex-cross-repo-feature.prompt.md" ] || { fail "Prompts not cleaned up when copilot disabled locally"; exit 1; }
+[ ! -d "$TEST_COPILOT_WS/.github/skills/rnex-cross-repo-feature" ] || { fail "Skills not cleaned up when copilot disabled locally"; exit 1; }
+[ ! -d "$TEST_COPILOT_WS/.github/agents" ] || { fail "Agents not cleaned up when copilot disabled locally"; exit 1; }
+
+# Verify status reflects local disable
+_cop_status_disabled="$(cd "$TEST_COPILOT_WS" && ./rnex status 2>&1)"
+echo "$_cop_status_disabled" | grep -q "disabled locally" || { fail "Status did not report plugin disabled locally"; exit 1; }
+pass
+
 # ==========================================================================
 
 echo ""

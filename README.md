@@ -215,7 +215,25 @@ rnex plugin enable karpathy-llm
 rnex plugin disable karpathy-llm
 ```
 
-### Built-in Plugin: `karpathy-llm`
+### Built-in Plugins
+
+#### 1. `copilot`
+The `copilot` plugin provides GitHub Copilot integration, automatically mirroring workspace and active plugin assets:
+* **Prompts (`.github/prompts/*.prompt.md`)**: Formatted with YAML frontmatter (`name`, `description`) for the VS Code Copilot Chat prompt picker and slash commands.
+* **Agent Skills (`.github/skills/<name>/SKILL.md`)**: Configured for GitHub Copilot Agent mode and `gh skill`.
+* **Custom Agents (`.github/agents/*.agent.md`)**: Active plugins' agent definitions mirrored for Copilot workspace custom agents.
+* **Instructions (`.github/copilot-instructions.md`)**: Synthesized workspace routing and active plugin guidelines, preserving manual user instructions.
+* **Configurable Options**:
+  ```yaml
+  plugins:
+    copilot:
+      prompts: true        # mirror prompts to .github/prompts/*.prompt.md (default: true)
+      skills: true         # mirror skills to .github/skills/<name>/SKILL.md (default: true)
+      instructions: true   # mirror guidelines to .github/copilot-instructions.md (default: true)
+      agents: true         # mirror custom agents to .github/agents/*.agent.md (default: true)
+  ```
+
+#### 2. `karpathy-llm`
 The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns, context engineering principles, and the autonomous **Karpathy LLM Wiki** architecture:
 * **The 4 Cardinal Agent Rules** (`.rnex/plugins/karpathy-llm/rules/behavioral.md`):
   1. *Think Before Coding:* Formulate explicit assumptions, boundary checks, and trade-offs before writing code.
@@ -248,8 +266,13 @@ repos_dir: ./repos
 # Automated workspace Git hooks (default: true)
 git_hooks: true
 
-# Workspace plugins
+# Workspace plugins and tool integrations
 plugins:
+  copilot:
+    prompts: true
+    skills: true
+    instructions: true
+    agents: true
   karpathy-llm: {}
 
 # Member repositories (enabled by default)

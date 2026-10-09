@@ -74,21 +74,29 @@ code_workspace: false
 git_hooks: true
 
 # ------------------------------------------------------------------------------
-# plugins — Workspace plugins and AI instruction packs
+# plugins — Workspace plugins, tool integrations, and AI instruction packs
 # ------------------------------------------------------------------------------
 # Plugins extend your workspace with curated AI guidelines, context rules,
-# and scaffolding templates scoped within `.rnex/plugins/<plugin-name>/`.
+# tool provider integrations (e.g. GitHub Copilot), and templates.
 #
 # Manage plugins with:
-#   rnex plugin list              # View available and active plugins
-#   rnex plugin enable <name>     # Enable plugin in workspace
-#   rnex plugin disable <name>    # Disable plugin from workspace
+#   rnex plugin list                 # View available and active plugins
+#   rnex plugin enable [--local] <name>  # Enable plugin (global or local override)
+#   rnex plugin disable [--local] <name> # Disable plugin from workspace
+#   rnex plugin info <name>          # View plugin details & configurable options
 #
 # Built-in plugins:
+#   copilot        — GitHub Copilot integration: mirrors operational prompts, skills,
+#                    agents, and synthesized instructions into .github/
 #   karpathy-llm   — Andrej Karpathy's agent behavioral principles,
 #                    context engineering guidelines, and LLM Wiki architecture
 
 plugins:
+  # copilot:
+  #   prompts: true        # mirror prompts to .github/prompts/*.prompt.md (default: true)
+  #   skills: true         # mirror skills to .github/skills/<name>/SKILL.md (default: true)
+  #   instructions: true   # mirror instructions to .github/copilot-instructions.md (default: true)
+  #   agents: true         # mirror custom agents to .github/agents/*.agent.md (default: true)
   # karpathy-llm: {}
 
 # ------------------------------------------------------------------------------

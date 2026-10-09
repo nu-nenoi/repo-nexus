@@ -147,6 +147,7 @@ require_workspace() {
     _load_ai_instructions_file
     _load_code_workspace
     _load_git_hooks
+    _load_copilot
     log_info "Using workspace at ${_BOLD}$NEXUS_DIR${_NC} ${_DIM}(via config: $WORKSPACE_YAML)${_NC}"
     return 0
   fi
@@ -177,6 +178,7 @@ require_workspace() {
   _load_ai_instructions_file
   _load_code_workspace
   _load_git_hooks
+  _load_copilot
 
   log_info "Using workspace at ${_BOLD}$NEXUS_DIR${_NC} ${_DIM}($(basename "$WORKSPACE_YAML") found)${_NC}"
 }
@@ -268,6 +270,18 @@ _load_git_hooks() {
   GIT_HOOKS_CONFIG="$_gh"
 }
 
+_load_copilot() {
+  _cp=""
+  if [ -f "$WORKSPACE_LOCAL_YAML" ]; then
+    _cp="$(awk '/^(copilot|copilot_sync):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_LOCAL_YAML")"
+  fi
+  if [ -z "$_cp" ] && [ -f "$WORKSPACE_YAML" ]; then
+    _cp="$(awk '/^(copilot|copilot_sync):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_YAML")"
+  fi
+  _cp="$(echo "$_cp" | tr -d " \t\r\n'\"")"
+  COPILOT_CONFIG="$_cp"
+}
+
 # ---- YAML Parser / Manipulator (for rnex.yaml & .local.rnex.yaml) ----------
 
 _yaml_list_plugins_from_file() {
@@ -352,22 +366,211 @@ yaml_has_plugin() {
   yaml_list_plugins | grep -qx "$1" 2>/dev/null
 }
 
-yaml_enable_plugin() {
-  _name="$1"
-  if ! grep -q '^plugins:' "$WORKSPACE_YAML" 2>/dev/null; then
-    printf '\nplugins:\n' >> "$WORKSPACE_YAML"
+yaml_plugin_enabled() {
+  _plugin="$1"
+  yaml_has_plugin "$_plugin" || return 1
+  _val="$(yaml_plugin_get "$_plugin" "enabled")"
+  _val="$(printf '%s' "$_val" | tr '[:upper:]' '[:lower:]')"
+  case "$_val" in
+    false|no|0|disabled|off) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+copilot_plugin_enabled() {
+  if yaml_plugin_enabled "copilot"; then
+    return 0
   fi
-  if ! yaml_has_plugin "$_name"; then
+  case "$COPILOT_CONFIG" in
+    true|yes|1) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+copilot_prompts_enabled() {
+  copilot_plugin_enabled || return 1
+  _val="$(yaml_plugin_get "copilot" "prompts")"
+  _val="$(printf '%s' "$_val" | tr '[:upper:]' '[:lower:]')"
+  case "$_val" in
+    false|no|0|disabled|off) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+copilot_skills_enabled() {
+  copilot_plugin_enabled || return 1
+  _val="$(yaml_plugin_get "copilot" "skills")"
+  _val="$(printf '%s' "$_val" | tr '[:upper:]' '[:lower:]')"
+  case "$_val" in
+    false|no|0|disabled|off) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+copilot_instructions_enabled() {
+  copilot_plugin_enabled || return 1
+  _val="$(yaml_plugin_get "copilot" "instructions")"
+  _val="$(printf '%s' "$_val" | tr '[:upper:]' '[:lower:]')"
+  case "$_val" in
+    false|no|0|disabled|off) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+copilot_agents_enabled() {
+  copilot_plugin_enabled || return 1
+  _val="$(yaml_plugin_get "copilot" "agents")"
+  _val="$(printf '%s' "$_val" | tr '[:upper:]' '[:lower:]')"
+  case "$_val" in
+    false|no|0|disabled|off) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+_yaml_plugin_set_in_file() {
+  _file="$1"; _plugin="$2"; _field="$3"; _value="$4"
+  if [ ! -f "$_file" ]; then
+    mkdir -p "$(dirname "$_file")"
+    printf 'plugins:\n' > "$_file"
+  elif ! grep -q '^plugins:' "$_file" 2>/dev/null; then
+    printf '\nplugins:\n' >> "$_file"
+  fi
+
+  if ! awk -v plugin="$_plugin" '
+    /^plugins:[ ]*$/ || /^plugins:[ ]*#/ { in_p=1; next }
+    in_p && /^[^ #]/ { in_p=0 }
+    in_p && match($0, "^  " plugin ":[ ]*(#.*)?$") { found=1; exit }
+    END { exit !found }
+  ' "$_file" 2>/dev/null; then
+    if grep -qE "^  $_plugin:[ ]*(\{\}|\[\])?$" "$_file" 2>/dev/null; then
+      _tmp="$(mktemp)"
+      awk -v plugin="$_plugin" -v field="$_field" -v value="$_value" '
+        match($0, "^  " plugin ":[ ]*(\\{\\}|\\[\\])?$") {
+          printf "  %s:\n    %s: %s\n", plugin, field, value
+          next
+        }
+        { print }
+      ' "$_file" > "$_tmp" && mv "$_tmp" "$_file"
+      return 0
+    fi
     _tmp="$(mktemp)"
-    awk -v name="$_name" '
-      /^plugins:/ {
+    awk -v plugin="$_plugin" -v field="$_field" -v value="$_value" '
+      /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
         print
-        printf "  %s: {}\n", name
+        printf "  %s:\n    %s: %s\n", plugin, field, value
         added=1
         next
       }
       { print }
-    ' "$WORKSPACE_YAML" > "$_tmp" && mv "$_tmp" "$WORKSPACE_YAML"
+      END {
+        if (!added) {
+          printf "plugins:\n  %s:\n    %s: %s\n", plugin, field, value
+        }
+      }
+    ' "$_file" > "$_tmp" && mv "$_tmp" "$_file"
+    return 0
+  fi
+
+  _tmp="$(mktemp)"
+  awk -v plugin="$_plugin" -v field="$_field" -v value="$_value" '
+    /^plugins:/ { in_plugins=1; print; next }
+    in_plugins && /^[^ #]/ {
+      if (in_target && !field_set) {
+        printf "    %s: %s\n", field, value
+        field_set=1
+      }
+      in_plugins=0; in_target=0
+    }
+    in_plugins && match($0, "^  " plugin ":[ ]*(#.*)?$") {
+      in_target=1; print; next
+    }
+    in_target && /^  [^ #]/ {
+      if (!field_set) {
+        printf "    %s: %s\n", field, value
+        field_set=1
+      }
+      in_target=0
+    }
+    in_target && match($0, "^    " field ":") {
+      printf "    %s: %s\n", field, value
+      field_set=1
+      next
+    }
+    { print }
+    END {
+      if (in_target && !field_set) {
+        printf "    %s: %s\n", field, value
+      }
+    }
+  ' "$_file" > "$_tmp" && mv "$_tmp" "$_file"
+}
+
+yaml_plugin_set() {
+  _plugin="$1"; _field="$2"; _value="$3"
+  _yaml_plugin_set_in_file "$WORKSPACE_YAML" "$_plugin" "$_field" "$_value"
+}
+
+yaml_plugin_set_local() {
+  _plugin="$1"; _field="$2"; _value="$3"
+  if [ ! -f "$WORKSPACE_LOCAL_YAML" ]; then
+    cat <<'EOF' > "$WORKSPACE_LOCAL_YAML"
+# ==============================================================================
+# .local.rnex.yaml — Repo Nexus Local Configuration (Machine-Specific)
+# ==============================================================================
+# This file is gitignored. Use it to specify local repository paths, overrides,
+# and enable/disable states for this workstation.
+
+plugins:
+EOF
+  fi
+  _yaml_plugin_set_in_file "$WORKSPACE_LOCAL_YAML" "$_plugin" "$_field" "$_value"
+}
+
+yaml_enable_plugin() {
+  _name="$1"
+  _target_file="${2:-$WORKSPACE_YAML}"
+  if [ ! -f "$_target_file" ]; then
+    printf 'plugins:\n' > "$_target_file"
+  elif ! grep -q '^plugins:' "$_target_file" 2>/dev/null; then
+    printf '\nplugins:\n' >> "$_target_file"
+  fi
+  if ! _yaml_list_plugins_from_file "$_target_file" | grep -qx "$_name" 2>/dev/null; then
+    _tmp="$(mktemp)"
+    if [ "$_name" = "copilot" ]; then
+      awk -v name="$_name" '
+        /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
+          print
+          printf "  %s:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n", name
+          added=1
+          next
+        }
+        { print }
+        END {
+          if (!added) {
+            printf "plugins:\n  %s:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n", name
+          }
+        }
+      ' "$_target_file" > "$_tmp" && mv "$_tmp" "$_target_file"
+    else
+      awk -v name="$_name" '
+        /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
+          print
+          printf "  %s: {}\n", name
+          added=1
+          next
+        }
+        { print }
+        END {
+          if (!added) {
+            printf "plugins:\n  %s: {}\n", name
+          }
+        }
+      ' "$_target_file" > "$_tmp" && mv "$_tmp" "$_target_file"
+    fi
+  else
+    if [ -f "$WORKSPACE_LOCAL_YAML" ] && [ "$_target_file" = "$WORKSPACE_LOCAL_YAML" ]; then
+      _yaml_plugin_set_in_file "$_target_file" "$_name" "enabled" "true"
+    fi
   fi
 }
 
@@ -734,8 +937,8 @@ EOF
     _dest_pdir="$_r_rnex/plugins/$_pname"
     mkdir -p "$_dest_pdir"
 
-    # Copy rules/workflows/instructions into member plugin dir
-    for _sub in rules workflows instructions; do
+    # Copy rules/workflows/instructions/prompts/skills/agents into member plugin dir
+    for _sub in rules workflows instructions prompts skills agents; do
       if [ -d "$_pdir/$_sub" ]; then
         mkdir -p "$_dest_pdir/$_sub"
         cp -r "$_pdir/$_sub"/* "$_dest_pdir/$_sub"/ 2>/dev/null || true
@@ -846,8 +1049,8 @@ sync_plugins() {
     if [ "$_pdir" != "$_scoped_dest" ]; then
       mkdir -p "$_scoped_dest"
 
-      # Copy rules, workflows, instructions into scoped plugin directory
-      for _sub in rules workflows instructions; do
+      # Copy rules, workflows, instructions, prompts, skills, agents into scoped plugin directory
+      for _sub in rules workflows instructions prompts skills agents; do
         if [ -d "$_pdir/$_sub" ]; then
           mkdir -p "$_scoped_dest/$_sub"
           cp -r "$_pdir/$_sub"/* "$_scoped_dest/$_sub"/ 2>/dev/null || true
@@ -1130,6 +1333,115 @@ sync_code_workspace() {
   fi
 }
 
+sync_copilot_instructions() {
+  _dst_ci="$NEXUS_DIR/.github/copilot-instructions.md"
+  if ! copilot_instructions_enabled; then
+    if [ -f "$_dst_ci" ]; then
+      if grep -q "$AI_MARKER_START" "$_dst_ci" 2>/dev/null; then
+        _non_rnex="$(awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" '
+          $0 ~ s { skip=1; next }
+          $0 ~ e { skip=0; next }
+          !skip { print }
+        ' "$_dst_ci" | tr -d " \t\r\n")"
+        if [ -z "$_non_rnex" ]; then
+          rm -f "$_dst_ci"
+        else
+          _tmp="$(mktemp)"
+          awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" '
+            $0 ~ s { skip=1; next }
+            $0 ~ e { skip=0; next }
+            !skip { print }
+          ' "$_dst_ci" > "$_tmp" && mv "$_tmp" "$_dst_ci"
+        fi
+      fi
+    fi
+    return 0
+  fi
+
+  mkdir -p "$NEXUS_DIR/.github"
+  _body_tmp="$(mktemp)"
+
+  {
+    cat <<'EOF'
+# GitHub Copilot Instructions (Repo Nexus Virtual Meta-Repo)
+
+This workspace operates as a **Repo Nexus Virtual Meta-Repo** uniting independent repositories.
+
+## Routing & Operating Protocol
+1. Inspect `.local.rnex.yaml` when present, then `rnex.yaml`.
+2. Master operational prompts are indexed at `.rnex/prompts/index.md` (and mirrored in `.github/prompts/`).
+3. Member repositories reside in `repos/<name>/`. Inspect `repos/<name>/.rnex/` for repository-specific context.
+4. Perform Git commits directly inside member repository roots (`repos/<name>/`).
+EOF
+
+    # Append active plugins instructions & rules
+    _active_p="$(yaml_list_plugins)"
+    if [ -n "$_active_p" ]; then
+      printf '\n## Active Plugins & Guidelines\n'
+      echo "$_active_p" | while read -r _pname; do
+        [ -n "$_pname" ] || continue
+        yaml_plugin_enabled "$_pname" || continue
+        [ "$_pname" != "copilot" ] || continue
+        _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+        [ -n "$_pdir" ] || continue
+        _pdesc="$(plugin_get_field "$_pdir" "description")"
+        printf '\n### Plugin: %s\n' "$_pname"
+        [ -n "$_pdesc" ] && printf '%s\n\n' "$_pdesc"
+
+        for _rfile in "$_pdir"/rules/*.md "$NEXUS_DIR/.rnex/plugins/$_pname"/rules/*.md; do
+          if [ -f "$_rfile" ]; then
+            printf '#### Rules (%s)\n' "$(basename "$_rfile")"
+            cat "$_rfile"
+            printf '\n'
+            break
+          fi
+        done
+
+        for _ifile in "$_pdir"/instructions/*.md "$NEXUS_DIR/.rnex/plugins/$_pname"/instructions/*.md; do
+          if [ -f "$_ifile" ]; then
+            printf '#### Instructions (%s)\n' "$(basename "$_ifile")"
+            cat "$_ifile"
+            printf '\n'
+            break
+          fi
+        done
+      done
+    fi
+  } > "$_body_tmp"
+
+  if [ ! -f "$_dst_ci" ]; then
+    {
+      printf '%s\n' "$AI_MARKER_START"
+      cat "$_body_tmp"
+      printf '\n%s\n' "$AI_MARKER_END"
+    } > "$_dst_ci"
+  elif grep -q "$AI_MARKER_START" "$_dst_ci" 2>/dev/null; then
+    _tmp="$(mktemp)"
+    awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" -v src="$_body_tmp" '
+      $0 ~ s {
+        print s
+        while ((getline line < src) > 0) print line
+        close(src)
+        print e
+        skip=1
+        next
+      }
+      $0 ~ e { skip=0; next }
+      !skip { print }
+    ' "$_dst_ci" > "$_tmp" && mv "$_tmp" "$_dst_ci"
+  else
+    _tmp="$(mktemp)"
+    cat "$_dst_ci" > "$_tmp"
+    {
+      printf '\n\n%s\n' "$AI_MARKER_START"
+      cat "$_body_tmp"
+      printf '\n%s\n' "$AI_MARKER_END"
+    } >> "$_tmp"
+    mv "$_tmp" "$_dst_ci"
+  fi
+  rm -f "$_body_tmp"
+}
+
 sync_prompts() {
   _src_prompts=""
   if [ -d "$SCRIPT_LOCATION/toolkit/prompts" ]; then
@@ -1150,6 +1462,208 @@ sync_prompts() {
     _b="$(basename "$_pfile")"
     cp -f "$_pfile" "$_dst_prompts/$_b"
   done
+
+  # Copilot prompts sync (.github/prompts/*.prompt.md)
+  if copilot_prompts_enabled; then
+    _copilot_prompts="$NEXUS_DIR/.github/prompts"
+    mkdir -p "$_copilot_prompts"
+
+    # Base toolkit prompts
+    for _pfile in "$_src_prompts"/rnex-*.md; do
+      [ -f "$_pfile" ] || continue
+      _pname="$(basename "$_pfile" .md)"
+      _desc="$(awk '
+        /^#/ { in_title=1; next }
+        in_title && /^[A-Za-z]/ { print; exit }
+      ' "$_pfile" 2>/dev/null)"
+      [ -n "$_desc" ] || _desc="Repo Nexus prompt for $_pname"
+
+      _dst_cp="$_copilot_prompts/$_pname.prompt.md"
+      {
+        printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_pname" "$_desc"
+        cat "$_pfile"
+      } > "$_dst_cp"
+    done
+
+    # Active plugins prompts & workflows
+    yaml_list_plugins | while read -r _pname; do
+      [ -n "$_pname" ] || continue
+      yaml_plugin_enabled "$_pname" || continue
+      [ "$_pname" != "copilot" ] || continue
+      _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+      [ -n "$_pdir" ] || continue
+
+      for _sub in prompts workflows; do
+        for _s_dir in "$_pdir/$_sub" "$NEXUS_DIR/.rnex/plugins/$_pname/$_sub"; do
+          [ -d "$_s_dir" ] || continue
+          for _pfile in "$_s_dir"/*.md; do
+            [ -f "$_pfile" ] || continue
+            _base="$(basename "$_pfile" .md)"
+            case "$_base" in
+              index|README) continue ;;
+            esac
+            _desc="$(awk '
+              /^#/ { in_title=1; next }
+              in_title && /^[A-Za-z]/ { print; exit }
+            ' "$_pfile" 2>/dev/null)"
+            [ -n "$_desc" ] || _desc="Prompt $_base from plugin $_pname"
+
+            _dst_cp="$_copilot_prompts/$_base.prompt.md"
+            {
+              printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_base" "$_desc"
+              cat "$_pfile"
+            } > "$_dst_cp"
+          done
+        done
+      done
+    done
+  else
+    if [ -d "$NEXUS_DIR/.github/prompts" ]; then
+      rm -f "$NEXUS_DIR/.github/prompts"/*.prompt.md 2>/dev/null || true
+      rmdir "$NEXUS_DIR/.github/prompts" 2>/dev/null || true
+    fi
+  fi
+
+  # Copilot skills sync (.github/skills/<name>/SKILL.md)
+  if copilot_skills_enabled; then
+    _copilot_skills="$NEXUS_DIR/.github/skills"
+    mkdir -p "$_copilot_skills"
+
+    # Base toolkit skills
+    for _pfile in "$_src_prompts"/rnex-*.md; do
+      [ -f "$_pfile" ] || continue
+      _pname="$(basename "$_pfile" .md)"
+      _desc="$(awk '
+        /^#/ { in_title=1; next }
+        in_title && /^[A-Za-z]/ { print; exit }
+      ' "$_pfile" 2>/dev/null)"
+      [ -n "$_desc" ] || _desc="Repo Nexus prompt for $_pname"
+
+      _dst_sk_dir="$_copilot_skills/$_pname"
+      mkdir -p "$_dst_sk_dir"
+      _dst_sk="$_dst_sk_dir/SKILL.md"
+      {
+        printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_pname" "$_desc"
+        cat "$_pfile"
+      } > "$_dst_sk"
+    done
+
+    # Active plugins skills, prompts, & workflows
+    yaml_list_plugins | while read -r _pname; do
+      [ -n "$_pname" ] || continue
+      yaml_plugin_enabled "$_pname" || continue
+      [ "$_pname" != "copilot" ] || continue
+      _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+      [ -n "$_pdir" ] || continue
+
+      # A. Dedicated skills in plugin
+      for _s_dir in "$_pdir/skills" "$NEXUS_DIR/.rnex/plugins/$_pname/skills"; do
+        [ -d "$_s_dir" ] || continue
+        for _s_entry in "$_s_dir"/*; do
+          if [ -d "$_s_entry" ] && [ -f "$_s_entry/SKILL.md" ]; then
+            _sname="$(basename "$_s_entry")"
+            mkdir -p "$_copilot_skills/$_sname"
+            cp -f "$_s_entry/SKILL.md" "$_copilot_skills/$_sname/SKILL.md"
+          elif [ -f "$_s_entry" ]; then
+            _sname="$(basename "$_s_entry" .md)"
+            mkdir -p "$_copilot_skills/$_sname"
+            if grep -q '^---' "$_s_entry" 2>/dev/null; then
+              cp -f "$_s_entry" "$_copilot_skills/$_sname/SKILL.md"
+            else
+              _desc="$(awk '
+                /^#/ { in_title=1; next }
+                in_title && /^[A-Za-z]/ { print; exit }
+              ' "$_s_entry" 2>/dev/null)"
+              [ -n "$_desc" ] || _desc="Skill $_sname from plugin $_pname"
+              {
+                printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_sname" "$_desc"
+                cat "$_s_entry"
+              } > "$_copilot_skills/$_sname/SKILL.md"
+            fi
+          fi
+        done
+      done
+
+      # B. Plugin prompts & workflows as skills if not already provided
+      for _sub in prompts workflows; do
+        for _s_dir in "$_pdir/$_sub" "$NEXUS_DIR/.rnex/plugins/$_pname/$_sub"; do
+          [ -d "$_s_dir" ] || continue
+          for _pfile in "$_s_dir"/*.md; do
+            [ -f "$_pfile" ] || continue
+            _base="$(basename "$_pfile" .md)"
+            case "$_base" in
+              index|README) continue ;;
+            esac
+            _dst_sk_dir="$_copilot_skills/$_base"
+            if [ ! -f "$_dst_sk_dir/SKILL.md" ]; then
+              mkdir -p "$_dst_sk_dir"
+              _desc="$(awk '
+                /^#/ { in_title=1; next }
+                in_title && /^[A-Za-z]/ { print; exit }
+              ' "$_pfile" 2>/dev/null)"
+              [ -n "$_desc" ] || _desc="Skill $_base from plugin $_pname"
+              {
+                printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_base" "$_desc"
+                cat "$_pfile"
+              } > "$_dst_sk_dir/SKILL.md"
+            fi
+          done
+        done
+      done
+    done
+  else
+    if [ -d "$NEXUS_DIR/.github/skills" ]; then
+      rm -rf "$NEXUS_DIR/.github/skills" 2>/dev/null || true
+    fi
+  fi
+
+  # Copilot agents sync (.github/agents/*.agent.md)
+  if copilot_agents_enabled; then
+    _copilot_agents="$NEXUS_DIR/.github/agents"
+
+    yaml_list_plugins | while read -r _pname; do
+      [ -n "$_pname" ] || continue
+      yaml_plugin_enabled "$_pname" || continue
+      [ "$_pname" != "copilot" ] || continue
+      _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+      [ -n "$_pdir" ] || continue
+
+      for _s_dir in "$_pdir/agents" "$NEXUS_DIR/.rnex/plugins/$_pname/agents"; do
+        [ -d "$_s_dir" ] || continue
+        for _afile in "$_s_dir"/*.md; do
+          [ -f "$_afile" ] || continue
+          _aname="$(basename "$_afile" .agent.md)"
+          _aname="$(basename "$_aname" .md)"
+          mkdir -p "$_copilot_agents"
+          if grep -q '^---' "$_afile" 2>/dev/null; then
+            cp -f "$_afile" "$_copilot_agents/$_aname.agent.md"
+          else
+            _desc="$(awk '
+              /^#/ { in_title=1; next }
+              in_title && /^[A-Za-z]/ { print; exit }
+            ' "$_afile" 2>/dev/null)"
+            [ -n "$_desc" ] || _desc="Agent $_aname from plugin $_pname"
+            {
+              printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_aname" "$_desc"
+              cat "$_afile"
+            } > "$_copilot_agents/$_aname.agent.md"
+          fi
+          # Also mirror to skills if skills enabled
+          if copilot_skills_enabled; then
+            mkdir -p "$_copilot_skills/$_aname"
+            cp -f "$_copilot_agents/$_aname.agent.md" "$_copilot_skills/$_aname/SKILL.md"
+          fi
+        done
+      done
+    done
+  else
+    if [ -d "$NEXUS_DIR/.github/agents" ]; then
+      rm -rf "$NEXUS_DIR/.github/agents" 2>/dev/null || true
+    fi
+  fi
+
+  # Copilot instructions sync (.github/copilot-instructions.md)
+  sync_copilot_instructions
 }
 
 upgrade_workspace_config() {
@@ -1484,12 +1998,15 @@ cmd_init() {
   _cli_code_workspace=""
   _cli_hooks=""
   _cli_no_hooks=0
+  _cli_copilot=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
       -y|--yes) _non_interactive=1 ;;
       --hooks) _cli_hooks="true" ;;
       --no-hooks) _cli_no_hooks=1; _cli_hooks="false" ;;
+      --copilot) _cli_copilot="true" ;;
+      --no-copilot) _cli_copilot="false" ;;
       --ai|--instructions|--ai-instructions)
         shift
         _cli_ai_instructions="$1"
@@ -1559,11 +2076,15 @@ cmd_init() {
     log_dim "To reconcile repos and plugins, run:"
     log_dim "  rnex fix"
   else
+    _init_plugins=""
+    if [ "$_cli_copilot" = "true" ]; then
+      _init_plugins="  copilot:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n"
+    fi
+
     cat > "$_target_yaml" <<YAML_EOF
-# Repo Nexus workspace configuration (Virtual Meta-Repo)
+# Repo Nexus workspace configuration
 # See docs/rnex.example.yaml for a comprehensive example with all options.
 
-# Workspace configuration version
 version: $RNEX_VERSION
 
 # Directory for member repository clones
@@ -1580,7 +2101,7 @@ git_hooks: $_init_git_hooks
 
 # Workspace plugins
 plugins:
-
+$(printf '%b' "$_init_plugins")
 # Member repositories managed by Repo Nexus
 repos:
 YAML_EOF
@@ -1615,8 +2136,15 @@ YAML_EOF
   mkdir -p "$_target_dir/.rnex/plugins"
   mkdir -p "$_target_dir/.rnex/prompts"
   _orig_nexus="$NEXUS_DIR"
+  _orig_yaml="$WORKSPACE_YAML"
+  _orig_local_yaml="$WORKSPACE_LOCAL_YAML"
   NEXUS_DIR="$_target_dir"
+  WORKSPACE_YAML="$_target_yaml"
+  WORKSPACE_LOCAL_YAML="$_target_dir/$RNEX_LOCAL_CONFIG_FILE"
+  sync_plugins
   sync_prompts
+  WORKSPACE_LOCAL_YAML="$_orig_local_yaml"
+  WORKSPACE_YAML="$_orig_yaml"
   NEXUS_DIR="$_orig_nexus"
 
   # ---- 5. Ensure repos/ and local configs are gitignored ---------
@@ -2035,6 +2563,7 @@ cmd_status() {
       fi
       ;;
   esac
+
   printf '\n'
 
   printf '%bWorkspace AI Context (Routing):%b\n' "$_BOLD" "$_NC"
@@ -2067,6 +2596,18 @@ cmd_status() {
   if [ -f "$NEXUS_DIR/.rnex/prompts/index.md" ]; then
     printf '  %b✓%b %s %b(prompts catalog)%b\n' "$_G" "$_NC" ".rnex/prompts/index.md" "$_DIM" "$_NC"
   fi
+  if [ -d "$NEXUS_DIR/.github/prompts" ]; then
+    printf '  %b✓%b %s %b(Copilot prompts)%b\n' "$_G" "$_NC" ".github/prompts/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.github/skills" ]; then
+    printf '  %b✓%b %s %b(Copilot skills)%b\n' "$_G" "$_NC" ".github/skills/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.github/agents" ]; then
+    printf '  %b✓%b %s %b(Copilot agents)%b\n' "$_G" "$_NC" ".github/agents/" "$_DIM" "$_NC"
+  fi
+  if [ -f "$NEXUS_DIR/.github/copilot-instructions.md" ]; then
+    printf '  %b✓%b %s %b(Copilot instructions)%b\n' "$_G" "$_NC" ".github/copilot-instructions.md" "$_DIM" "$_NC"
+  fi
   printf '\n'
 
   printf '%bActive Plugins:%b\n' "$_BOLD" "$_NC"
@@ -2080,8 +2621,19 @@ cmd_status() {
       if [ -n "$_pdir" ]; then
         _ver="$(plugin_get_field "$_pdir" "version")"
         _desc="$(plugin_get_field "$_pdir" "description")"
-        printf '  %b●%b %-18s %b(v%s)%b %s\n' "$_G" "$_NC" "$_pname" "$_DIM" "${_ver:-0.1.0}" "$_NC" "${_desc:+- $_desc}"
-        printf '    %bScoped directory: .rnex/plugins/%s%b\n' "$_DIM" "$_pname" "$_NC"
+        if ! yaml_plugin_enabled "$_pname"; then
+          printf '  %b○%b %-18s %b[disabled locally]%b\n' "$_DIM" "$_NC" "$_pname" "$_DIM" "$_NC"
+        else
+          printf '  %b●%b %-18s %b(v%s)%b %s\n' "$_G" "$_NC" "$_pname" "$_DIM" "${_ver:-0.1.0}" "$_NC" "${_desc:+- $_desc}"
+          printf '    %bScoped directory: .rnex/plugins/%s%b\n' "$_DIM" "$_pname" "$_NC"
+          if [ "$_pname" = "copilot" ]; then
+            printf '    %b↳ Options: prompts=%s, skills=%s, instructions=%s, agents=%s%b\n' "$_DIM" \
+              "$(copilot_prompts_enabled && echo "true" || echo "false")" \
+              "$(copilot_skills_enabled && echo "true" || echo "false")" \
+              "$(copilot_instructions_enabled && echo "true" || echo "false")" \
+              "$(copilot_agents_enabled && echo "true" || echo "false")" "$_NC"
+          fi
+        fi
       else
         printf '  %b✗%b %-18s %bMISSING%b\n' "$_R" "$_NC" "$_pname" "$_R" "$_NC"
         printf '    %b↳ [!] Issue: plugin declared in config but directory not found on disk%b\n' "$_R" "$_NC"
@@ -2172,6 +2724,7 @@ cmd_fix() {
       _load_ai_instructions_file
       _load_code_workspace
       _load_git_hooks
+      _load_copilot
       [ "$_fix_quiet" -eq 0 ] && log_ok "Upgraded workspace configuration and routing instructions to v$RNEX_VERSION"
     fi
   fi
@@ -2328,8 +2881,10 @@ cmd_plugin_info() {
   _author="$(plugin_get_field "$_pdir" "author")"
   _home="$(plugin_get_field "$_pdir" "homepage")"
 
-  if yaml_has_plugin "$_name"; then
+  if yaml_plugin_enabled "$_name"; then
     _status="${_G}enabled${_NC}"
+  elif yaml_has_plugin "$_name"; then
+    _status="${_DIM}disabled locally (${WORKSPACE_LOCAL_YAML})${_NC}"
   else
     _status="${_DIM}available (not enabled)${_NC}"
   fi
@@ -2341,6 +2896,14 @@ cmd_plugin_info() {
   [ -n "$_author" ] && printf '%bAuthor:%b       %s\n' "$_BOLD" "$_NC" "$_author"
   [ -n "$_home" ] && printf '%bHomepage:%b     %s\n' "$_BOLD" "$_NC" "$_home"
   printf '%bLocation:%b     %s\n' "$_BOLD" "$_NC" "$_pdir"
+
+  if [ "$_name" = "copilot" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - prompts: true|false  (mirror prompts to .github/prompts/*.prompt.md; current: %s)\n' "$(copilot_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .github/skills/<name>/SKILL.md; current: %s)\n' "$(copilot_skills_enabled && echo "true" || echo "false")"
+    printf '  - instructions: true|false  (mirror instructions to .github/copilot-instructions.md; current: %s)\n' "$(copilot_instructions_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .github/agents/*.agent.md; current: %s)\n' "$(copilot_agents_enabled && echo "true" || echo "false")"
+  fi
 
   printf '\n%bScoped Directory:%b .rnex/plugins/%s\n' "$_BOLD" "$_NC" "$_name"
 
@@ -2361,8 +2924,16 @@ cmd_plugin_info() {
 
 cmd_plugin_enable() {
   require_workspace
-  _pname="$1"
-  [ -n "$_pname" ] || die "Usage: rnex plugin enable <name>"
+  _is_local=0
+  _pname=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --local) _is_local=1 ;;
+      *) _pname="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$_pname" ] || die "Usage: rnex plugin enable [--local] <name>"
 
   _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
   [ -n "$_pdir" ] || die "Plugin '$_pname' not found."
@@ -2370,8 +2941,13 @@ cmd_plugin_enable() {
   _name="$(plugin_get_field "$_pdir" "name")"
   [ -n "$_name" ] || _name="$_pname"
 
-  yaml_enable_plugin "$_name"
-  log_ok "Plugin '$_name' enabled in $(basename "$WORKSPACE_YAML")"
+  if [ "$_is_local" -eq 1 ]; then
+    yaml_enable_plugin "$_name" "$WORKSPACE_LOCAL_YAML"
+    log_ok "Plugin '$_name' enabled locally in $(basename "$WORKSPACE_LOCAL_YAML")"
+  else
+    yaml_enable_plugin "$_name" "$WORKSPACE_YAML"
+    log_ok "Plugin '$_name' enabled in $(basename "$WORKSPACE_YAML")"
+  fi
 
   sync_plugins
   cmd_fix
@@ -2380,8 +2956,16 @@ cmd_plugin_enable() {
 
 cmd_plugin_disable() {
   require_workspace
-  _pname="$1"
-  [ -n "$_pname" ] || die "Usage: rnex plugin disable <name>"
+  _is_local=0
+  _pname=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --local) _is_local=1 ;;
+      *) _pname="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$_pname" ] || die "Usage: rnex plugin disable [--local] <name>"
 
   _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
   _name="$_pname"
@@ -2390,22 +2974,34 @@ cmd_plugin_disable() {
     [ -n "$_n" ] && _name="$_n"
   fi
 
-  yaml_disable_plugin "$_name"
-
-  # Remove scoped plugin from workspace .rnex/plugins/
-  if [ -d "$NEXUS_DIR/.rnex/plugins/$_name" ]; then
-    rm -rf "$NEXUS_DIR/.rnex/plugins/$_name"
-    log_ok "Removed workspace plugin scope: .rnex/plugins/$_name"
+  if [ "$_is_local" -eq 1 ]; then
+    if _yaml_list_plugins_from_file "$WORKSPACE_YAML" | grep -qx "$_name" 2>/dev/null; then
+      yaml_plugin_set_local "$_name" "enabled" "false"
+      log_ok "Plugin '$_name' disabled locally in $(basename "$WORKSPACE_LOCAL_YAML")"
+    else
+      _yaml_disable_plugin_in_file "$WORKSPACE_LOCAL_YAML" "$_name"
+      log_ok "Plugin '$_name' removed from $(basename "$WORKSPACE_LOCAL_YAML")"
+    fi
+  else
+    yaml_disable_plugin "$_name"
+    log_ok "Plugin '$_name' disabled from workspace"
   fi
 
-  # Remove scoped plugin from member repos .rnex/plugins/
-  yaml_list_repos | while read -r _rname; do
-    _rpath="$(resolve_repo_path "$_rname")"
-    if [ -d "$_rpath/.rnex/plugins/$_name" ]; then
-      rm -rf "$_rpath/.rnex/plugins/$_name"
+  if ! yaml_plugin_enabled "$_name"; then
+    if [ -d "$NEXUS_DIR/.rnex/plugins/$_name" ]; then
+      rm -rf "$NEXUS_DIR/.rnex/plugins/$_name"
+      log_ok "Removed workspace plugin scope: .rnex/plugins/$_name"
     fi
-  done
 
+    yaml_list_repos | while read -r _rname; do
+      _rpath="$(resolve_repo_path "$_rname")"
+      if [ -d "$_rpath/.rnex/plugins/$_name" ]; then
+        rm -rf "$_rpath/.rnex/plugins/$_name"
+      fi
+    done
+  fi
+
+  sync_prompts
   log_ok "Plugin '$_name' disabled from workspace"
 }
 
@@ -2628,7 +3224,7 @@ cmd_help() {
     -v, --version           Show version
 
   WORKSPACE & SYSTEM SETUP
-    init [-y] [--ai <file>] [--code-workspace [file]] [--hooks|--no-hooks] [dir]
+    init [-y] [--ai <file>] [--code-workspace [file]] [--hooks|--no-hooks] [--copilot|--no-copilot] [dir]
                             Initialize a new Repo Nexus workspace (default AI file: AGENTS.md)
     install [dir]           Install rnex & repo-nexus globally into ~/.local/bin (or custom dir)
     fix [-y] [--quiet]      Reconcile workspace, plugins, prompts & member .rnex/ (alias: sync)
@@ -2652,8 +3248,8 @@ cmd_help() {
   PLUGIN MANAGEMENT
     plugin [list]           List available and enabled plugins
     plugin info <name>      Show details of a plugin
-    plugin enable <name>    Enable plugin in workspace (scoped to .rnex/plugins/<name>/)
-    plugin disable <name>   Disable plugin from workspace
+    plugin enable [--local] <name>   Enable plugin in workspace (scoped to .rnex/plugins/<name>/)
+    plugin disable [--local] <name>  Disable plugin from workspace
 
   EXAMPLES
     rnex init                                   # Initialize workspace in current folder

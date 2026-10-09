@@ -72,6 +72,8 @@ rnex init [options] [directory]
 - `--code-workspace [filename]`: Enable VS Code / Cursor multi-root workspace file generation. Defaults to `<directory-name>.code-workspace` if omitted.
 - `--hooks`: Force-enable automated Git hooks setup during initialization.
 - `--no-hooks`: Skip Git hooks configuration during initialization.
+- `--copilot`: Enable GitHub Copilot integration plugin (mirrors prompts, skills, agents, and instructions to `.github/`).
+- `--no-copilot`: Skip GitHub Copilot plugin (default).
 
 #### What it does:
 1. Creates `rnex.yaml` with schema versioning (`version: <version>`), `repos_dir: ./repos`, and configured defaults.
@@ -81,6 +83,7 @@ rnex init [options] [directory]
 5. Reconciles `.gitignore` to ensure `repos/` and `.local.rnex.yaml` are never tracked by the meta-repo (while keeping `.rnex/` tracked).
 6. Generates a multi-root `.code-workspace` file if configured.
 7. Prompts to configure automated workspace Git hooks (`core.hooksPath = .rnex/hooks`) if inside a Git repository.
+8. Configures enabled plugins (including `copilot` if requested).
 
 #### Examples:
 ```sh
@@ -353,14 +356,14 @@ Unsets `core.hooksPath` in Git configuration, removes `.rnex/hooks/`, and record
 Repo Nexus features a modular plugin architecture where plugin rules, instructions, and templates are scoped strictly under `.rnex/plugins/<plugin-name>/`.
 
 ```sh
-rnex plugin <list|info|enable|disable> [name]
+rnex plugin <list|info|enable|disable> [options] [name]
 ```
 
 ### Subcommands
 - **`rnex plugin list`**: Displays all available plugins distributed with `rnex` and highlights enabled plugins.
-- **`rnex plugin info <name>`**: Shows description, version, scoped directory, and external template paths for a plugin.
-- **`rnex plugin enable <name>`**: Enables a plugin in `rnex.yaml`, copies assets to `.rnex/plugins/<name>/`, and reconciles workspace files.
-- **`rnex plugin disable <name>`**: Removes plugin assets from `.rnex/plugins/<name>/` and disables the plugin in `rnex.yaml`.
+- **`rnex plugin info <name>`**: Shows description, version, configurable options, scoped directory, and external template paths for a plugin.
+- **`rnex plugin enable [--local] <name>`**: Enables a plugin in `rnex.yaml` (or `.local.rnex.yaml` with `--local`), copies assets to `.rnex/plugins/<name>/`, and reconciles workspace files.
+- **`rnex plugin disable [--local] <name>`**: Removes plugin assets from `.rnex/plugins/<name>/` and disables the plugin in `rnex.yaml` (or overrides with `enabled: false` in `.local.rnex.yaml` with `--local`).
 
 ---
 
