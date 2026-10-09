@@ -245,6 +245,9 @@ The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design p
 # Directory for member repository clones
 repos_dir: ./repos
 
+# Automated workspace Git hooks (default: true)
+git_hooks: true
+
 # Workspace plugins
 plugins:
   karpathy-llm: {}
@@ -301,7 +304,7 @@ repos:
 | `rnex rnex-dir <enable\|disable> <name>` | Toggle `.rnex/` directory integration for a member repository |
 | `rnex fix [-y] [--quiet]` (or `sync`) | Reconcile workspace repositories, plugins, prompts, and member `.rnex/` directories |
 | `rnex update [-y]` (or `upgrade`) | Safely upgrade workspace configuration schema and routing instructions |
-| `rnex hooks <install\|uninstall\|status>` | Manage config-driven automated Git hooks (`.rnex/hooks`) |
+| `rnex hooks <install\|uninstall\|status> [--local]` | Manage automated Git hooks (`.rnex/hooks` and `git_hooks: true\|false`) |
 | `rnex plugin <list\|info\|enable\|disable>` | Manage workspace plugins |
 | `rnex completion <bash\|zsh\|fish>` | Generate shell auto-completion script |
 

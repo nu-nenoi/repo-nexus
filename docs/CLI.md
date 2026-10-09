@@ -316,26 +316,35 @@ rnex rnex-dir <enable|disable> <name>
 
 ## Git Hooks Automation Commands
 
-Repo Nexus manages workspace-level Git hooks via `git config core.hooksPath .rnex/hooks`. The hooks are native shell scripts that dynamically evaluate configuration triggers in `rnex.yaml` and `.local.rnex.yaml`.
+Repo Nexus manages workspace-level Git hooks via `git config core.hooksPath .rnex/hooks` and configuration in `rnex.yaml` (`git_hooks: true|false`). The hooks are native shell scripts that dynamically evaluate configuration triggers in `rnex.yaml` and `.local.rnex.yaml`.
 
 ```sh
-rnex hooks <install|uninstall|status>
+rnex hooks <install|uninstall|status> [--local]
 ```
+
+### Configuration (`rnex.yaml` / `.local.rnex.yaml`)
+```yaml
+# Enable or disable automated Git hooks
+git_hooks: true   # default: true (when in a Git repository)
+```
+- When `git_hooks: true`, `rnex fix` ensures hooks are installed and up to date.
+- When `git_hooks: false`, `rnex fix` disables and uninstalls hooks from Git.
+- Overrides can be placed in `.local.rnex.yaml` to disable hooks locally without modifying team config.
 
 ### Subcommands
 
-#### `rnex hooks install`
-Installs native hook dispatchers into `.rnex/hooks/` and configures Git:
+#### `rnex hooks install [--local]`
+Installs native hook dispatchers into `.rnex/hooks/`, sets `core.hooksPath = .rnex/hooks`, and records `git_hooks: true` in `rnex.yaml` (or `.local.rnex.yaml` if `--local` is passed):
 - **`post-merge`**: Automatically runs `rnex fix -y --quiet` whenever you run `git pull` or merge upstream changes, ensuring new repositories or plugin additions sync instantly.
 - **`post-commit`**: Evaluates `lint_trigger: git-post-commit`. If `/raw/` or `/wiki/` files were committed, alerts the user to run maintenance workflows.
 - **`pre-commit`**: Evaluates `lint_trigger: git-pre-commit`. Validates staged files before committing.
 - **`pre-push`**: Evaluates `lint_trigger: git-pre-push`. Validates changes before pushing to remote.
 
 #### `rnex hooks status`
-Displays the active `core.hooksPath`, installed hook scripts, and plugin triggers detected in `rnex.yaml`.
+Displays the configuration setting (`git_hooks: true/false`), active `core.hooksPath`, installed hook scripts, and plugin triggers detected in `rnex.yaml`.
 
-#### `rnex hooks uninstall`
-Unsets `core.hooksPath` in Git configuration and removes `.rnex/hooks/`.
+#### `rnex hooks uninstall [--local]`
+Unsets `core.hooksPath` in Git configuration, removes `.rnex/hooks/`, and records `git_hooks: false` in `rnex.yaml` (or `.local.rnex.yaml` if `--local` is passed).
 
 ---
 

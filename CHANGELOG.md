@@ -5,6 +5,18 @@ All notable changes to Repo Nexus (`rnex`) will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Explicit `git_hooks` Workspace Configuration (`rnex.yaml` & `.local.rnex.yaml`)**:
+  - Top-level `git_hooks: true|false` setting establishes the workspace configuration as the single source of truth for automated Git hooks.
+  - Two-level configuration support allowing per-workstation overrides in `.local.rnex.yaml` (e.g. keeping hooks globally enabled in `rnex.yaml` while disabling locally via `rnex hooks uninstall --local`).
+  - `rnex hooks install [--local]` and `rnex hooks uninstall [--local]` record preference directly to `rnex.yaml` or `.local.rnex.yaml`.
+  - `rnex fix` (and `rnex sync`) automatically reconciles Git's `core.hooksPath` against the resolved `git_hooks` configuration.
+  - Interactive `rnex init` determines and records `git_hooks` preference upfront in new workspaces.
+  - Workspace schema migration in `rnex update` and `rnex fix -y` non-destructively inserts `git_hooks` into older configurations.
+  - `rnex status` and `rnex hooks status` display configuration state alongside runtime Git hooks status.
+
 ## [0.5.1] - 2026-10-08
 
 ### Added

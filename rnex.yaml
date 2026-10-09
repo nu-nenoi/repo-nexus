@@ -12,6 +12,9 @@ ai_instructions: AGENTS.md
 # VS Code / Cursor multi-root workspace file (default: false; e.g. true or workspace.code-workspace)
 code_workspace: false
 
+# Automated workspace Git hooks (default: true; e.g. post-merge auto-sync, plugin triggers)
+git_hooks: false
+
 # Member repositories managed by Repo Nexus
 repos:
 

@@ -60,6 +60,20 @@ ai_instructions: AGENTS.md
 code_workspace: false
 
 # ------------------------------------------------------------------------------
+# git_hooks — Automated workspace Git hooks
+# ------------------------------------------------------------------------------
+# Enables automated Git hooks in `.rnex/hooks/` (post-merge auto-sync and
+# optional plugin triggers like Karpathy wiki lint on commit/push).
+#
+# Default: true (when initialized in a Git repository)
+#
+# Examples:
+#   git_hooks: true     # active (core.hooksPath = .rnex/hooks)
+#   git_hooks: false    # disabled
+#
+git_hooks: true
+
+# ------------------------------------------------------------------------------
 # plugins — Workspace plugins and AI instruction packs
 # ------------------------------------------------------------------------------
 # Plugins extend your workspace with curated AI guidelines, context rules,
