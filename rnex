@@ -1258,22 +1258,35 @@ upgrade_workspace_config() {
 _create_hook_script() {
   _dst="$1"
   _hook_type="$2"
-  cat > "$_dst" <<'HOOK_EOF'
+
+  # Preserve custom / repository-owned wrappers that are not auto-managed by rnex
+  if [ -f "$_dst" ] && ! grep -q "Managed automatically by rnex" "$_dst" 2>/dev/null; then
+    return 0
+  fi
+
+  _sub_tmp="$(mktemp)"
+  cat > "$_sub_tmp" <<HOOK_EOF
 #!/bin/sh
-# Repo Nexus Git Hook: __HOOK_TYPE__
+# Repo Nexus Git Hook: $_hook_type
 # Managed automatically by rnex. Do not edit manually.
 
-_dir="$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd -P)"
+_dir="\$(cd "\$(dirname "\$0")/../.." 2>/dev/null && pwd -P)"
 if command -v rnex >/dev/null 2>&1; then
-  rnex hooks run __HOOK_TYPE__ "$@"
-elif [ -f "$_dir/rnex" ]; then
-  "$_dir/rnex" hooks run __HOOK_TYPE__ "$@"
+  rnex hooks run $_hook_type "\$@"
+elif [ -f "\$_dir/rnex" ]; then
+  "\$_dir/rnex" hooks run $_hook_type "\$@"
 fi
 HOOK_EOF
-  _sub_tmp="$(mktemp)"
-  sed "s/__HOOK_TYPE__/$_hook_type/g" "$_dst" > "$_sub_tmp" && mv "$_sub_tmp" "$_dst"
-  rm -f "$_sub_tmp"
-  chmod +x "$_dst"
+
+  chmod +x "$_sub_tmp"
+
+  # Avoid rewriting / modifying file if already identical (prevents inode churn & self-rewrite)
+  if [ -f "$_dst" ] && cmp -s "$_sub_tmp" "$_dst"; then
+    rm -f "$_sub_tmp"
+    return 0
+  fi
+
+  mv "$_sub_tmp" "$_dst"
 }
 
 cmd_hooks_install_dir() {
@@ -1390,6 +1403,7 @@ cmd_hooks() {
       shift
       _hook_name="$1"
       shift || true
+      export _RNEX_INSIDE_HOOK=1
       require_workspace
       case "$_hook_name" in
         post-merge)
@@ -1402,6 +1416,9 @@ cmd_hooks() {
                 printf '%b[WIKI]%b Upstream changes detected in raw/ or wiki/ after merge.\n' "$_Y" "$_NC"
               fi
             fi
+          fi
+          if [ -x "$NEXUS_DIR/.githooks/post-merge" ]; then
+            "$NEXUS_DIR/.githooks/post-merge" "$@" || true
           fi
           return 0
           ;;
@@ -1416,6 +1433,9 @@ cmd_hooks() {
               fi
             fi
           fi
+          if [ -x "$NEXUS_DIR/.githooks/post-commit" ]; then
+            "$NEXUS_DIR/.githooks/post-commit" "$@" || true
+          fi
           return 0
           ;;
         pre-commit)
@@ -1429,6 +1449,9 @@ cmd_hooks() {
               fi
             fi
           fi
+          if [ -x "$NEXUS_DIR/.githooks/pre-commit" ]; then
+            "$NEXUS_DIR/.githooks/pre-commit" "$@" || return $?
+          fi
           return 0
           ;;
         pre-push)
@@ -1437,6 +1460,9 @@ cmd_hooks() {
             if [ "$_trigger" = "git-pre-push" ] || [ "$_trigger" = "pre-push" ]; then
               printf '%b[WIKI]%b Pre-push trigger: verifying wiki changes.\n' "$_C" "$_NC"
             fi
+          fi
+          if [ -x "$NEXUS_DIR/.githooks/pre-push" ]; then
+            "$NEXUS_DIR/.githooks/pre-push" "$@" || return $?
           fi
           return 0
           ;;
@@ -2177,7 +2203,7 @@ cmd_fix() {
         _cur_hp="$(git -C "$NEXUS_DIR" config --get core.hooksPath 2>/dev/null || true)"
         if [ "$_cur_hp" != ".rnex/hooks" ] && [ "$_cur_hp" != "$NEXUS_DIR/.rnex/hooks" ]; then
           cmd_hooks_install_dir "$NEXUS_DIR"
-        else
+        elif [ "${_RNEX_INSIDE_HOOK:-0}" -ne 1 ]; then
           _hooks_dir="$NEXUS_DIR/.rnex/hooks"
           _create_hook_script "$_hooks_dir/post-merge" "post-merge"
           _create_hook_script "$_hooks_dir/post-commit" "post-commit"
@@ -2189,11 +2215,13 @@ cmd_fix() {
     *)
       _cur_hp="$(git -C "$NEXUS_DIR" config --get core.hooksPath 2>/dev/null || true)"
       if [ "$_cur_hp" = ".rnex/hooks" ] || [ "$_cur_hp" = "$NEXUS_DIR/.rnex/hooks" ]; then
-        _hooks_dir="$NEXUS_DIR/.rnex/hooks"
-        _create_hook_script "$_hooks_dir/post-merge" "post-merge"
-        _create_hook_script "$_hooks_dir/post-commit" "post-commit"
-        _create_hook_script "$_hooks_dir/pre-commit" "pre-commit"
-        _create_hook_script "$_hooks_dir/pre-push" "pre-push"
+        if [ "${_RNEX_INSIDE_HOOK:-0}" -ne 1 ]; then
+          _hooks_dir="$NEXUS_DIR/.rnex/hooks"
+          _create_hook_script "$_hooks_dir/post-merge" "post-merge"
+          _create_hook_script "$_hooks_dir/post-commit" "post-commit"
+          _create_hook_script "$_hooks_dir/pre-commit" "pre-commit"
+          _create_hook_script "$_hooks_dir/pre-push" "pre-push"
+        fi
       fi
       ;;
   esac

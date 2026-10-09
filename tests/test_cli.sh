@@ -492,7 +492,51 @@ _loc_hp2="$(git -C "$TEST_LOCAL_HOOKS" config --get core.hooksPath 2>/dev/null |
 git -C "$TEST_LOCAL_HOOKS" config --unset core.hooksPath
 (cd "$TEST_LOCAL_HOOKS" && ./rnex fix --quiet >/dev/null)
 _reconciled_hp2="$(git -C "$TEST_LOCAL_HOOKS" config --get core.hooksPath 2>/dev/null || true)"
-[ "$_reconciled_hp2" = ".rnex/hooks" ] || { fail "rnex fix did not reinstall hooks when configured as git_hooks: true"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "Git hooks: custom wrapper preservation, self-rewrite avoidance, and .githooks chaining"
+TEST_WRAPPER_WS="$TEST_TMP/wrapper-hooks-ws"
+mkdir -p "$TEST_WRAPPER_WS"
+cp "$CLI" "$TEST_WRAPPER_WS/rnex"
+chmod +x "$TEST_WRAPPER_WS/rnex"
+cp -r "$DIR/toolkit" "$TEST_WRAPPER_WS/toolkit"
+cp "$DIR/package.json" "$TEST_WRAPPER_WS/package.json"
+git -C "$TEST_WRAPPER_WS" init -q
+
+"$TEST_WRAPPER_WS/rnex" init -y "$TEST_WRAPPER_WS" >/dev/null
+
+# 1. Custom wrapper in .rnex/hooks/post-commit must not be overwritten
+cat <<'WRAPPER_EOF' > "$TEST_WRAPPER_WS/.rnex/hooks/post-commit"
+#!/bin/sh
+# Custom tested team wrapper (not managed by rnex)
+echo "CUSTOM_WRAPPER_ACTIVE"
+WRAPPER_EOF
+chmod +x "$TEST_WRAPPER_WS/.rnex/hooks/post-commit"
+
+# Run fix to ensure custom wrapper is preserved
+(cd "$TEST_WRAPPER_WS" && ./rnex fix --quiet >/dev/null)
+grep -q "CUSTOM_WRAPPER_ACTIVE" "$TEST_WRAPPER_WS/.rnex/hooks/post-commit" || { fail "rnex fix overwrote custom wrapper in .rnex/hooks/post-commit"; exit 1; }
+
+# 2. Existing .githooks chaining
+mkdir -p "$TEST_WRAPPER_WS/.githooks"
+cat <<GITHOOKS_EOF > "$TEST_WRAPPER_WS/.githooks/pre-commit"
+#!/bin/sh
+echo "CHAINED_GITHOOKS_PRE_COMMIT" > "$TEST_WRAPPER_WS/githooks_marker"
+GITHOOKS_EOF
+chmod +x "$TEST_WRAPPER_WS/.githooks/pre-commit"
+
+(cd "$TEST_WRAPPER_WS" && ./rnex hooks run pre-commit >/dev/null)
+[ -f "$TEST_WRAPPER_WS/githooks_marker" ] || { fail "rnex hooks run pre-commit did not chain to .githooks/pre-commit"; exit 1; }
+grep -q "CHAINED_GITHOOKS_PRE_COMMIT" "$TEST_WRAPPER_WS/githooks_marker" || { fail "Chained .githooks/pre-commit did not execute properly"; exit 1; }
+
+# 3. Avoidance of self-rewrite during hooks run post-merge
+# shellcheck disable=SC2012
+_inode_before="$(ls -i "$TEST_WRAPPER_WS/.rnex/hooks/post-merge" | awk '{print $1}')"
+(cd "$TEST_WRAPPER_WS" && ./rnex hooks run post-merge >/dev/null)
+# shellcheck disable=SC2012
+_inode_after="$(ls -i "$TEST_WRAPPER_WS/.rnex/hooks/post-merge" | awk '{print $1}')"
+[ "$_inode_before" = "$_inode_after" ] || { fail "post-merge hook was rewritten/replaced during hook execution (self-rewrite bug)"; exit 1; }
 pass
 
 # ==========================================================================

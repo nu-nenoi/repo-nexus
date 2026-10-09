@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Workspace schema migration in `rnex update` and `rnex fix -y` non-destructively inserts `git_hooks` into older configurations.
   - `rnex status` and `rnex hooks status` display configuration state alongside runtime Git hooks status.
 
+### Fixed
+- **Git Hooks Self-Rewrite & Wrapper Preservation**:
+  - Resolved self-rewrite bug where `rnex hooks run post-merge` invoked `cmd_fix`, which truncated and replaced `.rnex/hooks/post-merge` while the shell interpreter was actively executing it.
+  - Added in-hook execution guard (`_RNEX_INSIDE_HOOK=1`) preventing hook script regeneration during active hook dispatch.
+  - Preserved custom / repository-owned wrappers in `.rnex/hooks/` that are not auto-managed by `rnex`.
+  - Added `cmp -s` check before writing hook files to eliminate unnecessary file churn and in-place overwrites.
+  - Automatically chain to existing repository-owned `.githooks/` scripts if present.
+
 ## [0.5.1] - 2026-10-08
 
 ### Added
