@@ -2,9 +2,6 @@
 repos/*
 !repos/.gitkeep
 
-# Repo Nexus internal state & plugins
-.rnex/
-
 # OS
 .DS_Store
 

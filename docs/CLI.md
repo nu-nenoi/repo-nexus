@@ -78,7 +78,7 @@ rnex init [options] [directory]
 2. Merges Repo Nexus routing instructions (`<!-- REPO-NEXUS:START -->` ... `<!-- REPO-NEXUS:END -->`) into the target AI instructions file.
 3. Creates `./repos/` directory with a tracked `.gitkeep`.
 4. Creates `.rnex/`, `.rnex/plugins/`, and copies standardized prompts to `.rnex/prompts/`.
-5. Reconciles `.gitignore` to ensure `repos/`, `.rnex/`, and `.local.rnex.yaml` are never tracked by the meta-repo.
+5. Reconciles `.gitignore` to ensure `repos/` and `.local.rnex.yaml` are never tracked by the meta-repo (while keeping `.rnex/` tracked).
 6. Generates a multi-root `.code-workspace` file if configured.
 7. Prompts to configure automated workspace Git hooks (`core.hooksPath = .rnex/hooks`) if inside a Git repository.
 
@@ -110,7 +110,7 @@ rnex status
 #### What it reports:
 - **Configuration & Versions**: Path, version tag, and load status of `rnex.yaml` and `.local.rnex.yaml`.
 - **Paths**: Clones directory (`repos_dir`) and primary AI instructions file.
-- **Git Integration**: Validation that `.gitignore` ignores `repos/`, `.rnex/`, and local files, and whether `core.hooksPath` points to `.rnex/hooks`.
+- **Git Integration**: Validation that `.gitignore` ignores `repos/` and local files (while keeping `.rnex/` tracked), and whether `core.hooksPath` points to `.rnex/hooks`.
 - **AI Routing Context**: Existence and routing block markers in `AGENTS.md`, `CLAUDE.md`, `.code-workspace`, and prompts catalog (`.rnex/prompts/index.md`).
 - **Active Plugins**: List of enabled plugins, scoped versions, and asset directories.
 - **Member Repositories**: Every registered repository, enabled/disabled state, clone health, and active Git branch.

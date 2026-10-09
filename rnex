@@ -890,14 +890,11 @@ reconcile_gitignore() {
 repos/*
 !repos/.gitkeep
 
-# Repo Nexus internal state & cache
-.rnex/
-
 # Local machine-specific configuration
 $RNEX_LOCAL_CONFIG_FILE
 .rnex.local.yaml
 GI_EOF
-    log_ok "Created .gitignore (ignoring repos/, .rnex/, and $RNEX_LOCAL_CONFIG_FILE)"
+    log_ok "Created .gitignore (ignoring repos/ and $RNEX_LOCAL_CONFIG_FILE)"
     return 0
   fi
 
@@ -908,16 +905,17 @@ GI_EOF
     log_ok "Removed legacy lint trigger counter entries from .gitignore"
   fi
 
-  # 2. Ensure repos/* is ignored
+  # 2. Strip legacy .rnex/ entries if present (.rnex/ contains tracked prompts, plugins, and hooks)
+  if grep -qE '^[ ]*#?[ ]*Repo Nexus internal state' "$_gi" 2>/dev/null || grep -qE '^\.rnex/?$' "$_gi" 2>/dev/null; then
+    _tmp="$(mktemp)"
+    grep -vE '(^[ ]*#?[ ]*Repo Nexus internal state|^\.rnex/?$)' "$_gi" > "$_tmp" && mv "$_tmp" "$_gi"
+    log_ok "Removed .rnex/ from .gitignore (.rnex should be tracked in git)"
+  fi
+
+  # 3. Ensure repos/* is ignored
   if ! grep -q "^repos" "$_gi" 2>/dev/null; then
     printf '\n# Member repos (managed by rnex)\nrepos/*\n!repos/.gitkeep\n' >> "$_gi"
     log_dim "Added repos/* to .gitignore"
-  fi
-
-  # 3. Ensure .rnex/ is ignored
-  if ! grep -q '^\.rnex/' "$_gi" 2>/dev/null && ! grep -q '^\.rnex$' "$_gi" 2>/dev/null; then
-    printf '\n# Repo Nexus internal state & cache\n.rnex/\n' >> "$_gi"
-    log_dim "Added .rnex/ to .gitignore"
   fi
 
   # 4. Ensure local config files are ignored
@@ -1621,7 +1619,7 @@ YAML_EOF
   sync_prompts
   NEXUS_DIR="$_orig_nexus"
 
-  # ---- 5. Ensure repos/, .rnex/, and local configs are gitignored ---------
+  # ---- 5. Ensure repos/ and local configs are gitignored ---------
   reconcile_gitignore "$_target_dir"
 
   # ---- 6. Generate VS Code / Cursor workspace if configured ----------------
@@ -1978,18 +1976,18 @@ cmd_status() {
   fi
 
   _gi="$NEXUS_DIR/.gitignore"
-  _gi_repos=0; _gi_rnex=0; _gi_local=0; _gi_has_counter=0
+  _gi_repos=0; _gi_local=0; _gi_has_counter=0; _gi_has_rnex=0
   if [ -f "$_gi" ]; then
     grep -q '^repos' "$_gi" 2>/dev/null && _gi_repos=1
-    (grep -q '^\.rnex/' "$_gi" 2>/dev/null || grep -q '^\.rnex$' "$_gi" 2>/dev/null) && _gi_rnex=1
     grep -qF "$RNEX_LOCAL_CONFIG_FILE" "$_gi" 2>/dev/null && _gi_local=1
     grep -q "lint_trigger_counter" "$_gi" 2>/dev/null && _gi_has_counter=1
+    (grep -q '^\.rnex/' "$_gi" 2>/dev/null || grep -q '^\.rnex$' "$_gi" 2>/dev/null) && _gi_has_rnex=1
   fi
 
-  if [ "$_gi_repos" -eq 1 ] && [ "$_gi_rnex" -eq 1 ] && [ "$_gi_local" -eq 1 ] && [ "$_gi_has_counter" -eq 0 ]; then
-    printf '  %b✓%b Git Ignore:    repos/, .rnex/, and %s ignored in .gitignore\n' "$_G" "$_NC" "$RNEX_LOCAL_CONFIG_FILE"
+  if [ "$_gi_repos" -eq 1 ] && [ "$_gi_local" -eq 1 ] && [ "$_gi_has_counter" -eq 0 ] && [ "$_gi_has_rnex" -eq 0 ]; then
+    printf '  %b✓%b Git Ignore:    repos/ and %s ignored in .gitignore\n' "$_G" "$_NC" "$RNEX_LOCAL_CONFIG_FILE"
   else
-    printf '  %b!%b Git Ignore:    recommend running "rnex fix" to update .gitignore (repos/, .rnex/, local configs)\n' "$_Y" "$_NC"
+    printf '  %b!%b Git Ignore:    recommend running "rnex fix" to update .gitignore (repos/, local configs)\n' "$_Y" "$_NC"
   fi
 
   _hooks_path="$(git -C "$NEXUS_DIR" config --get core.hooksPath 2>/dev/null || true)"

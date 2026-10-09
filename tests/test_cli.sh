@@ -74,7 +74,7 @@ run_test "Initialize workspace with gitignore and routing instructions"
 [ -f "$TEST_WORKSPACE/repos/.gitkeep" ] || { fail "repos/.gitkeep missing"; exit 1; }
 [ -f "$TEST_WORKSPACE/.gitignore" ] || { fail ".gitignore missing"; exit 1; }
 grep -q 'repos/\*' "$TEST_WORKSPACE/.gitignore" || { fail "repos/* not in .gitignore"; exit 1; }
-grep -q '^\.rnex/' "$TEST_WORKSPACE/.gitignore" || { fail ".rnex/ not in .gitignore"; exit 1; }
+! grep -q '^\.rnex/' "$TEST_WORKSPACE/.gitignore" || { fail ".rnex/ should not be in .gitignore"; exit 1; }
 grep -q '.local.rnex.yaml' "$TEST_WORKSPACE/.gitignore" || { fail ".local.rnex.yaml not in .gitignore"; exit 1; }
 pass
 
@@ -216,11 +216,11 @@ echo "$_agents_content" | grep -q "Routing Protocol for AI Assistants" || { fail
 pass
 
 # --------------------------------------------------------------------------
-run_test "Gitignore reconciliation removes legacy lint_trigger_counter and ensures .rnex/"
-printf '\n.rnex/.lint_trigger_counter\nwiki/.lint_trigger_counter\n.lint_trigger_counter\n' >> "$TEST_WORKSPACE/.gitignore"
+run_test "Gitignore reconciliation removes legacy lint_trigger_counter and strips .rnex/"
+printf '\n.rnex/.lint_trigger_counter\nwiki/.lint_trigger_counter\n.lint_trigger_counter\n.rnex/\n' >> "$TEST_WORKSPACE/.gitignore"
 "$TEST_WORKSPACE/rnex" fix >/dev/null
 grep -q "lint_trigger_counter" "$TEST_WORKSPACE/.gitignore" && { fail "Legacy lint_trigger_counter still present in .gitignore"; exit 1; }
-grep -q '^\.rnex/' "$TEST_WORKSPACE/.gitignore" || { fail ".rnex/ missing from .gitignore after fix"; exit 1; }
+! grep -q '^\.rnex/' "$TEST_WORKSPACE/.gitignore" || { fail ".rnex/ still present in .gitignore after fix"; exit 1; }
 grep -q 'repos/\*' "$TEST_WORKSPACE/.gitignore" || { fail "repos/* missing from .gitignore after fix"; exit 1; }
 grep -q '.local.rnex.yaml' "$TEST_WORKSPACE/.gitignore" || { fail ".local.rnex.yaml missing from .gitignore after fix"; exit 1; }
 pass

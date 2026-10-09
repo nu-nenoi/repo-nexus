@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserved custom / repository-owned wrappers in `.rnex/hooks/` that are not auto-managed by `rnex`.
   - Added `cmp -s` check before writing hook files to eliminate unnecessary file churn and in-place overwrites.
   - Automatically chain to existing repository-owned `.githooks/` scripts if present.
+- **Track Workspace `.rnex/` in Version Control**:
+  - Removed `.rnex/` from `.gitignore` templates and generation.
+  - `reconcile_gitignore` and `rnex fix` actively strip legacy `.rnex/` ignore rules from `.gitignore` so that team prompts (`.rnex/prompts/`), plugins (`.rnex/plugins/`), and hooks (`.rnex/hooks/`) are tracked in git.
+  - Updated `rnex status` to expect `.rnex/` to remain tracked by git.
 
 ## [0.5.1] - 2026-10-08
 
