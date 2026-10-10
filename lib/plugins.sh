@@ -1,3 +1,5 @@
+#!/bin/sh
+# shellcheck shell=sh
 # ============================================================================
 # lib/plugins.sh — Plugin Engine (discovery, metadata, and scoped synchronization)
 # ============================================================================

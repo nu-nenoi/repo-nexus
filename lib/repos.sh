@@ -1,3 +1,5 @@
+#!/bin/sh
+# shellcheck shell=sh
 # ============================================================================
 # lib/repos.sh — Physical repository path resolution and member repo .rnex isolation
 # ============================================================================

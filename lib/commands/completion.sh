@@ -1,3 +1,5 @@
+#!/bin/sh
+# shellcheck shell=sh
 # ============================================================================
 # lib/commands/completion.sh — Shell completion generators (bash, zsh, fish)
 # ============================================================================

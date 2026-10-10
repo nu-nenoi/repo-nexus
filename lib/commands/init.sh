@@ -1,3 +1,5 @@
+#!/bin/sh
+# shellcheck shell=sh
 # ============================================================================
 # lib/commands/init.sh — Workspace initialization command
 # ============================================================================
@@ -94,7 +96,7 @@ cmd_init() {
   # ---- 1. Create config file if none exists ---------------------------------
   _config_created=0
   if [ -f "$_target_yaml" ]; then
-    log_warn "Workspace configuration already exists at $_target_dir ($RNEX_CONFIG_FILE exists)"
+    log_warn "Workspace configuration already exists at $_init_dir ($RNEX_CONFIG_FILE exists)"
     log_dim "To reconcile repos and plugins, run:"
     log_dim "  rnex fix"
   else

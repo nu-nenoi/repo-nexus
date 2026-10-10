@@ -1,3 +1,5 @@
+#!/bin/sh
+# shellcheck shell=sh
 # ============================================================================
 # lib/workspace.sh — Workspace detection, context loading, and configuration upgrade
 # ============================================================================

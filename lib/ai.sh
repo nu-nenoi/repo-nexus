@@ -1,3 +1,5 @@
+#!/bin/sh
+# shellcheck shell=sh
 # ============================================================================
 # lib/ai.sh — AI Instructions, workspace context, and AI provider synchronization
 # ============================================================================
