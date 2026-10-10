@@ -20,6 +20,7 @@ A **simple, lightweight Virtual Meta-Repo companion** for multi-repo workspaces 
 
 > 💡 **Documentation & Guides:**
 > - Check out the **[CLI Reference Manual](docs/CLI.md)** for complete command syntax, flags, Git hooks, plugins, and prompts.
+> - Check out the **[Plugins Guide](docs/plugins/README.md)** for detailed documentation on all built-in AI provider and domain plugins.
 > - Check out the **[Frequently Asked Questions (FAQ)](docs/FAQ.md)** for architecture deep dives, Git workflows, and AI context strategies.
 
 ---
@@ -216,6 +217,8 @@ rnex plugin disable karpathy-llm
 ```
 
 ### Built-in Plugins
+
+> For dedicated guides, configuration options, and directory layouts for each plugin, see the [**Repo Nexus Plugins Guide**](docs/plugins/README.md).
 
 #### 1. `copilot`
 The `copilot` plugin provides GitHub Copilot integration, automatically mirroring workspace and active plugin assets:

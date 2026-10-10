@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dedicated Plugins Documentation (`docs/plugins/`)**:
+  - Comprehensive documentation suite covering all built-in AI provider and domain plugins, architecture, and developer authoring guides.
+  - Added `docs/plugins/README.md` detailing scoped plugin isolation, member repo synchronization, decoupled cross-plugin asset discovery, two-level configuration, delimited instruction merging, CLI command reference, and custom plugin authoring specifications.
+  - Added dedicated documentation pages for each built-in plugin:
+    - `docs/plugins/copilot.md`: GitHub Copilot prompt mirroring, skills, custom agents, and synthesized `.github/copilot-instructions.md`.
+    - `docs/plugins/claude.md`: Anthropic Claude Code & Desktop instructions (`CLAUDE.md`), slash commands (`.claude/commands/`), prompts, skills, and agents.
+    - `docs/plugins/gemini.md`: Google Gemini & Antigravity instructions (`GEMINI.md`), prompts, skills, and agents.
+    - `docs/plugins/cursor.md`: Cursor IDE instructions (`.cursorrules` & `.cursor/rules/repo-nexus.mdc`), prompts, skills, and agents.
+    - `docs/plugins/windsurf.md`: Windsurf IDE instructions (`.windsurfrules`), prompts, skills, and agents.
+    - `docs/plugins/karpathy-llm.md`: Karpathy LLM 4 Cardinal Principles, context engineering, autonomous LLM Wiki (`raw/`, `wiki/`), workflows (`wiki-ingest`, `wiki-lint`), and automated Git hooks integration.
+  - Linked the new documentation guides from `README.md` and `docs/CLI.md`.
 - **AI Provider Plugins for Claude, Gemini, Cursor, and Windsurf**:
   - Built-in provider plugins (`toolkit/plugins/claude/`, `toolkit/plugins/gemini/`, `toolkit/plugins/cursor/`, `toolkit/plugins/windsurf/`) alongside `copilot`.
   - Native instructions synthesis and sync for each provider: `CLAUDE.md`, `GEMINI.md`, `.cursorrules` (and `.cursor/rules/repo-nexus.mdc`), and `.windsurfrules`.
@@ -43,6 +54,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Diagnostics and configurable options reporting integrated into `rnex status`.
 
 ### Changed
+- **Modular POSIX Shell Codebase Architecture (`lib/`)**:
+  - Decomposed the monolithic 3,700+ line `rnex` script into an extensible, modular architecture with dedicated libraries and command modules under `lib/`.
+  - Streamlined `rnex` launcher to 110 lines focused on symlink-aware script path resolution (`RNEX_LIB_DIR`), core library discovery, and CLI dispatch.
+  - Extracted core utilities and workspace operations into specialized modules:
+    - `lib/core.sh`: ANSI colors, logging utilities (`log_ok`, `log_warn`, `log_err`, `log_info`, `log_dim`, `die`), version comparator (`version_cmp`), and symlink path resolution (`resolve_script_path`).
+    - `lib/workspace.sh`: Workspace directory detection, configuration file loaders (`_init_local_yaml`, `_load_workspace_version`, `_load_repos_dir`, `_load_code_workspace`, `_load_git_hooks`), and automatic version migration routines.
+    - `lib/yaml.sh`: Pure POSIX/awk YAML manipulation engine for member repos, plugins, and workspace configuration without third-party dependencies.
+    - `lib/repos.sh`: Member repository path resolution, workspace cloning, directory creation, and `.rnex/` member isolation.
+    - `lib/plugins.sh`: Plugin engine discovery, manifest parsing, and scoped workspace asset synchronization.
+    - `lib/ai.sh`: Delimited AI instructions merging (`<!-- REPO-NEXUS -->`), provider integration sync (Copilot, Claude, Gemini, Cursor, Windsurf), prompt mirroring, skill syncing, multi-root workspace generation, and `.gitignore` reconciliation.
+    - `lib/hooks.sh`: Automated Git hook script generator (`_create_hook_script`), hook installation, uninstallation, status diagnostics, and execution dispatching.
+  - Extracted CLI commands into dedicated modules under `lib/commands/`:
+    - `lib/commands/init.sh`: Interactive and headless workspace initialization (`cmd_init`).
+    - `lib/commands/repo.sh`: Member repository lifecycle management (`add`, `clone`, `remove`, `list`, `exec`, `enable`, `disable`, `show`, `hide`).
+    - `lib/commands/status.sh`: Workspace health diagnostics and plugin status reporting (`cmd_status`).
+    - `lib/commands/fix.sh`: Unified idempotent workspace repair, sync, and config upgrade (`cmd_fix`, `cmd_sync`, `cmd_update`, `cmd_upgrade`).
+    - `lib/commands/plugin.sh`: Plugin lifecycle commands (`list`, `info`, `enable`, `disable`, `rnex-dir`).
+    - `lib/commands/completion.sh`: Autocompletion generators for Bash, Zsh, and Fish.
+    - `lib/commands/system.sh`: Package installation helper, version reporter, and help display.
+  - Maintained 100% backward compatibility, pure POSIX `/bin/sh` compliance, and zero external runtime dependencies.
+  - Updated `package.json` files array to distribute the `lib/` directory in npm packages.
+  - Enhanced automated test suite (`tests/test_cli.sh`) to support modular library resolution across isolated temporary workspaces.
 - **Removed `ai_instructions` Configuration in Favor of AI Provider Plugins**:
   - Removed the legacy `ai_instructions` configuration key. `AGENTS.md` is now the workspace standard.
   - Users choosing provider-specific files (`CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`) enable the respective AI provider plugin (`claude`, `gemini`, `cursor`, `windsurf`).
@@ -57,8 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Variable Shadowing and Directory Creation in Hook / Init Synchronization**:
   - Fixed variable name shadowing (`_target_dir`) across `cmd_init` and provider sync routines in POSIX shell.
   - Ensured target directories are created before moving temporary hook files in `_create_hook_script`.
-
-### Fixed
 - **Git Hooks Self-Rewrite & Wrapper Preservation**:
   - Resolved self-rewrite bug where `rnex hooks run post-merge` invoked `cmd_fix`, which truncated and replaced `.rnex/hooks/post-merge` while the shell interpreter was actively executing it.
   - Added in-hook execution guard (`_RNEX_INSIDE_HOOK=1`) preventing hook script regeneration during active hook dispatch.

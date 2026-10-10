@@ -358,6 +358,8 @@ Unsets `core.hooksPath` in Git configuration, removes `.rnex/hooks/`, and record
 
 Repo Nexus features a modular plugin architecture where plugin rules, instructions, and templates are scoped strictly under `.rnex/plugins/<plugin-name>/`.
 
+For complete documentation on built-in plugins (Copilot, Claude, Gemini, Cursor, Windsurf, Karpathy LLM), see the [**Repo Nexus Plugins Guide**](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/README.md).
+
 ```sh
 rnex plugin <list|info|enable|disable> [options] [name]
 ```
