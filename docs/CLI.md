@@ -72,10 +72,10 @@ rnex init [options] [directory]
 - `--hooks`: Force-enable automated Git hooks setup during initialization.
 - `--no-hooks`: Skip Git hooks configuration during initialization.
 - `--copilot`: Enable GitHub Copilot integration plugin (mirrors prompts, skills, agents, and instructions to `.github/`).
-- `--claude`: Enable Anthropic Claude Code plugin (maintains `CLAUDE.md`, mirrors prompts/skills to `.claude/`).
-- `--gemini`: Enable Google Gemini & Antigravity plugin (maintains `GEMINI.md`, mirrors prompts/skills to `.gemini/`).
-- `--cursor`: Enable Cursor IDE plugin (maintains `.cursorrules` / `.cursor/rules/`, mirrors prompts/skills to `.cursor/`).
-- `--windsurf`: Enable Windsurf IDE plugin (maintains `.windsurfrules`, mirrors prompts/skills to `.windsurf/`).
+- `--claude`: Enable Anthropic Claude Code plugin (maintains `CLAUDE.md`, mirrors prompts/skills/agents to `.claude/`).
+- `--gemini`: Enable Google Gemini & Antigravity plugin (maintains `GEMINI.md`, mirrors prompts/skills/agents to `.gemini/`).
+- `--cursor`: Enable Cursor IDE plugin (maintains `.cursorrules` / `.cursor/rules/`, mirrors prompts/skills/agents to `.cursor/`).
+- `--windsurf`: Enable Windsurf IDE plugin (maintains `.windsurfrules`, mirrors prompts/skills/agents to `.windsurf/`).
 
 #### What it does:
 1. Creates `rnex.yaml` with schema versioning (`version: <version>`), `repos_dir: ./repos`, and configured defaults.

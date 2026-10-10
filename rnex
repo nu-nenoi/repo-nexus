@@ -399,21 +399,25 @@ claude_plugin_enabled() { provider_plugin_enabled "claude"; }
 claude_prompts_enabled() { provider_option_enabled "claude" "prompts"; }
 claude_skills_enabled() { provider_option_enabled "claude" "skills"; }
 claude_instructions_enabled() { provider_option_enabled "claude" "instructions"; }
+claude_agents_enabled() { provider_option_enabled "claude" "agents"; }
 
 gemini_plugin_enabled() { provider_plugin_enabled "gemini"; }
 gemini_prompts_enabled() { provider_option_enabled "gemini" "prompts"; }
 gemini_skills_enabled() { provider_option_enabled "gemini" "skills"; }
 gemini_instructions_enabled() { provider_option_enabled "gemini" "instructions"; }
+gemini_agents_enabled() { provider_option_enabled "gemini" "agents"; }
 
 cursor_plugin_enabled() { provider_plugin_enabled "cursor"; }
 cursor_prompts_enabled() { provider_option_enabled "cursor" "prompts"; }
 cursor_skills_enabled() { provider_option_enabled "cursor" "skills"; }
 cursor_instructions_enabled() { provider_option_enabled "cursor" "instructions"; }
+cursor_agents_enabled() { provider_option_enabled "cursor" "agents"; }
 
 windsurf_plugin_enabled() { provider_plugin_enabled "windsurf"; }
 windsurf_prompts_enabled() { provider_option_enabled "windsurf" "prompts"; }
 windsurf_skills_enabled() { provider_option_enabled "windsurf" "skills"; }
 windsurf_instructions_enabled() { provider_option_enabled "windsurf" "instructions"; }
+windsurf_agents_enabled() { provider_option_enabled "windsurf" "agents"; }
 
 has_ai_provider_plugin_enabled() {
   for _ap in claude gemini cursor windsurf; do
@@ -554,14 +558,14 @@ yaml_enable_plugin() {
         awk -v name="$_name" '
           /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
             print
-            printf "  %s:\n    instructions: true\n    prompts: true\n    skills: true\n", name
+            printf "  %s:\n    instructions: true\n    prompts: true\n    skills: true\n    agents: true\n", name
             added=1
             next
           }
           { print }
           END {
             if (!added) {
-              printf "plugins:\n  %s:\n    instructions: true\n    prompts: true\n    skills: true\n", name
+              printf "plugins:\n  %s:\n    instructions: true\n    prompts: true\n    skills: true\n    agents: true\n", name
             }
           }
         ' "$_target_file" > "$_tmp" && mv "$_tmp" "$_target_file"
@@ -1376,25 +1380,7 @@ sync_code_workspace() {
 sync_copilot_instructions() {
   _dst_ci="$NEXUS_DIR/.github/copilot-instructions.md"
   if ! copilot_instructions_enabled; then
-    if [ -f "$_dst_ci" ]; then
-      if grep -q "$AI_MARKER_START" "$_dst_ci" 2>/dev/null; then
-        _non_rnex="$(awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" '
-          $0 ~ s { skip=1; next }
-          $0 ~ e { skip=0; next }
-          !skip { print }
-        ' "$_dst_ci" | tr -d " \t\r\n")"
-        if [ -z "$_non_rnex" ]; then
-          rm -f "$_dst_ci"
-        else
-          _tmp="$(mktemp)"
-          awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" '
-            $0 ~ s { skip=1; next }
-            $0 ~ e { skip=0; next }
-            !skip { print }
-          ' "$_dst_ci" > "$_tmp" && mv "$_tmp" "$_dst_ci"
-        fi
-      fi
-    fi
+    clean_rnex_instructions "$_dst_ci"
     return 0
   fi
 
@@ -1655,66 +1641,181 @@ sync_provider_skills() {
   done
 }
 
+clean_provider_prompts() {
+  _sp_dir="$1"
+  _ext="${2:-.md}"
+  [ -d "$_sp_dir" ] || return 0
+
+  if [ -z "$_src_prompts" ]; then
+    if [ -d "$SCRIPT_LOCATION/toolkit/prompts" ]; then
+      _src_prompts="$SCRIPT_LOCATION/toolkit/prompts"
+    elif [ -d "$(dirname "$SCRIPT_LOCATION")/toolkit/prompts" ]; then
+      _src_prompts="$(dirname "$SCRIPT_LOCATION")/toolkit/prompts"
+    elif [ -d "$NEXUS_DIR/toolkit/prompts" ]; then
+      _src_prompts="$NEXUS_DIR/toolkit/prompts"
+    fi
+  fi
+
+  # Remove base toolkit prompts
+  if [ -n "$_src_prompts" ]; then
+    for _pfile in "$_src_prompts"/rnex-*.md; do
+      [ -f "$_pfile" ] || continue
+      _pname="$(basename "$_pfile" .md)"
+      rm -f "$_sp_dir/${_pname}${_ext}" 2>/dev/null || true
+    done
+  fi
+
+  # Remove plugin prompts & workflows
+  for _pdir in "$DIR/toolkit/plugins"/* "$NEXUS_DIR/.rnex/plugins"/*; do
+    [ -d "$_pdir" ] || continue
+    for _sub in prompts workflows; do
+      [ -d "$_pdir/$_sub" ] || continue
+      for _pfile in "$_pdir/$_sub"/*.md; do
+        [ -f "$_pfile" ] || continue
+        _base="$(basename "$_pfile" .md)"
+        case "$_base" in
+          index|README) continue ;;
+        esac
+        rm -f "$_sp_dir/${_base}${_ext}" 2>/dev/null || true
+      done
+    done
+  done
+
+  rmdir "$_sp_dir" 2>/dev/null || true
+}
+
+clean_provider_skills() {
+  _sk_dir="$1"
+  [ -d "$_sk_dir" ] || return 0
+
+  if [ -z "$_src_prompts" ]; then
+    if [ -d "$SCRIPT_LOCATION/toolkit/prompts" ]; then
+      _src_prompts="$SCRIPT_LOCATION/toolkit/prompts"
+    elif [ -d "$(dirname "$SCRIPT_LOCATION")/toolkit/prompts" ]; then
+      _src_prompts="$(dirname "$SCRIPT_LOCATION")/toolkit/prompts"
+    elif [ -d "$NEXUS_DIR/toolkit/prompts" ]; then
+      _src_prompts="$NEXUS_DIR/toolkit/prompts"
+    fi
+  fi
+
+  # Remove base toolkit skills
+  if [ -n "$_src_prompts" ]; then
+    for _pfile in "$_src_prompts"/rnex-*.md; do
+      [ -f "$_pfile" ] || continue
+      _pname="$(basename "$_pfile" .md)"
+      rm -f "$_sk_dir/$_pname/SKILL.md" 2>/dev/null || true
+      rmdir "$_sk_dir/$_pname" 2>/dev/null || true
+    done
+  fi
+
+  # Remove plugin skills, prompts, workflows, & agents as skills
+  for _pdir in "$DIR/toolkit/plugins"/* "$NEXUS_DIR/.rnex/plugins"/*; do
+    [ -d "$_pdir" ] || continue
+    for _sub in skills prompts workflows agents; do
+      [ -d "$_pdir/$_sub" ] || continue
+      for _s_entry in "$_pdir/$_sub"/*; do
+        [ -e "$_s_entry" ] || continue
+        _sname="$(basename "$_s_entry" .md)"
+        _sname="$(basename "$_sname" .agent.md)"
+        case "$_sname" in
+          index|README) continue ;;
+        esac
+        rm -f "$_sk_dir/$_sname/SKILL.md" 2>/dev/null || true
+        rmdir "$_sk_dir/$_sname" 2>/dev/null || true
+      done
+    done
+  done
+
+  rmdir "$_sk_dir" 2>/dev/null || true
+}
+
+sync_provider_agents() {
+  _ag_dir="$1"
+  _ext="${2:-.md}"
+  mkdir -p "$_ag_dir"
+
+  yaml_list_plugins | while read -r _pname; do
+    [ -n "$_pname" ] || continue
+    yaml_plugin_enabled "$_pname" || continue
+    case "$_pname" in
+      copilot|claude|gemini|cursor|windsurf) continue ;;
+    esac
+    _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+    [ -n "$_pdir" ] || continue
+
+    for _s_dir in "$_pdir/agents" "$NEXUS_DIR/.rnex/plugins/$_pname/agents"; do
+      [ -d "$_s_dir" ] || continue
+      for _afile in "$_s_dir"/*.md; do
+        [ -f "$_afile" ] || continue
+        _aname="$(basename "$_afile" .agent.md)"
+        _aname="$(basename "$_aname" .md)"
+        _dst_agent="$_ag_dir/${_aname}${_ext}"
+        if grep -q '^---' "$_afile" 2>/dev/null; then
+          cp -f "$_afile" "$_dst_agent"
+        else
+          _desc="$(awk '
+            /^#/ { in_title=1; next }
+            in_title && /^[A-Za-z]/ { print; exit }
+          ' "$_afile" 2>/dev/null)"
+          [ -n "$_desc" ] || _desc="Agent $_aname from plugin $_pname"
+          {
+            printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_aname" "$_desc"
+            cat "$_afile"
+          } > "$_dst_agent"
+        fi
+      done
+    done
+  done
+}
+
+clean_provider_agents() {
+  _ag_dir="$1"
+  _ext="${2:-.md}"
+  [ -d "$_ag_dir" ] || return 0
+
+  for _pdir in "$DIR/toolkit/plugins"/* "$NEXUS_DIR/.rnex/plugins"/*; do
+    [ -d "$_pdir" ] || continue
+    [ -d "$_pdir/agents" ] || continue
+    for _afile in "$_pdir/agents"/*.md; do
+      [ -f "$_afile" ] || continue
+      _aname="$(basename "$_afile" .agent.md)"
+      _aname="$(basename "$_aname" .md)"
+      rm -f "$_ag_dir/${_aname}${_ext}" 2>/dev/null || true
+      if [ "$_ag_dir" = "$NEXUS_DIR/.github/agents" ]; then
+        rm -f "$NEXUS_DIR/.github/skills/$_aname/SKILL.md" 2>/dev/null || true
+        rmdir "$NEXUS_DIR/.github/skills/$_aname" 2>/dev/null || true
+      fi
+    done
+  done
+
+  rmdir "$_ag_dir" 2>/dev/null || true
+}
+
 sync_copilot() {
   if copilot_prompts_enabled; then
     sync_provider_prompts "$NEXUS_DIR/.github/prompts" ".prompt.md"
   else
-    if [ -d "$NEXUS_DIR/.github/prompts" ]; then
-      rm -f "$NEXUS_DIR/.github/prompts"/*.prompt.md 2>/dev/null || true
-      rmdir "$NEXUS_DIR/.github/prompts" 2>/dev/null || true
-    fi
+    clean_provider_prompts "$NEXUS_DIR/.github/prompts" ".prompt.md"
   fi
 
   if copilot_skills_enabled; then
     sync_provider_skills "$NEXUS_DIR/.github/skills"
   else
-    if [ -d "$NEXUS_DIR/.github/skills" ]; then
-      rm -rf "$NEXUS_DIR/.github/skills" 2>/dev/null || true
-    fi
+    clean_provider_skills "$NEXUS_DIR/.github/skills"
   fi
 
   if copilot_agents_enabled; then
-    _copilot_agents="$NEXUS_DIR/.github/agents"
-    yaml_list_plugins | while read -r _pname; do
-      [ -n "$_pname" ] || continue
-      yaml_plugin_enabled "$_pname" || continue
-      case "$_pname" in
-        copilot|claude|gemini|cursor|windsurf) continue ;;
-      esac
-      _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
-      [ -n "$_pdir" ] || continue
-
-      for _s_dir in "$_pdir/agents" "$NEXUS_DIR/.rnex/plugins/$_pname/agents"; do
-        [ -d "$_s_dir" ] || continue
-        for _afile in "$_s_dir"/*.md; do
-          [ -f "$_afile" ] || continue
-          _aname="$(basename "$_afile" .agent.md)"
-          _aname="$(basename "$_aname" .md)"
-          mkdir -p "$_copilot_agents"
-          if grep -q '^---' "$_afile" 2>/dev/null; then
-            cp -f "$_afile" "$_copilot_agents/$_aname.agent.md"
-          else
-            _desc="$(awk '
-              /^#/ { in_title=1; next }
-              in_title && /^[A-Za-z]/ { print; exit }
-            ' "$_afile" 2>/dev/null)"
-            [ -n "$_desc" ] || _desc="Agent $_aname from plugin $_pname"
-            {
-              printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_aname" "$_desc"
-              cat "$_afile"
-            } > "$_copilot_agents/$_aname.agent.md"
-          fi
-          if copilot_skills_enabled; then
-            mkdir -p "$NEXUS_DIR/.github/skills/$_aname"
-            cp -f "$_copilot_agents/$_aname.agent.md" "$NEXUS_DIR/.github/skills/$_aname/SKILL.md"
-          fi
-        done
+    sync_provider_agents "$NEXUS_DIR/.github/agents" ".agent.md"
+    if copilot_skills_enabled; then
+      for _ag_file in "$NEXUS_DIR/.github/agents"/*.agent.md; do
+        [ -f "$_ag_file" ] || continue
+        _aname="$(basename "$_ag_file" .agent.md)"
+        mkdir -p "$NEXUS_DIR/.github/skills/$_aname"
+        cp -f "$_ag_file" "$NEXUS_DIR/.github/skills/$_aname/SKILL.md"
       done
-    done
-  else
-    if [ -d "$NEXUS_DIR/.github/agents" ]; then
-      rm -rf "$NEXUS_DIR/.github/agents" 2>/dev/null || true
     fi
+  else
+    clean_provider_agents "$NEXUS_DIR/.github/agents" ".agent.md"
   fi
 
   sync_copilot_instructions
@@ -1732,17 +1833,27 @@ sync_claude() {
       sync_provider_prompts "$NEXUS_DIR/.claude/commands" ".md"
       sync_provider_prompts "$NEXUS_DIR/.claude/prompts" ".md"
     else
-      rm -rf "$NEXUS_DIR/.claude/commands" "$NEXUS_DIR/.claude/prompts" 2>/dev/null || true
+      clean_provider_prompts "$NEXUS_DIR/.claude/commands" ".md"
+      clean_provider_prompts "$NEXUS_DIR/.claude/prompts" ".md"
     fi
 
     if claude_skills_enabled; then
       sync_provider_skills "$NEXUS_DIR/.claude/skills"
     else
-      rm -rf "$NEXUS_DIR/.claude/skills" 2>/dev/null || true
+      clean_provider_skills "$NEXUS_DIR/.claude/skills"
+    fi
+
+    if claude_agents_enabled; then
+      sync_provider_agents "$NEXUS_DIR/.claude/agents" ".md"
+    else
+      clean_provider_agents "$NEXUS_DIR/.claude/agents" ".md"
     fi
   else
     clean_rnex_instructions "$NEXUS_DIR/CLAUDE.md"
-    rm -rf "$NEXUS_DIR/.claude/commands" "$NEXUS_DIR/.claude/prompts" "$NEXUS_DIR/.claude/skills" 2>/dev/null || true
+    clean_provider_prompts "$NEXUS_DIR/.claude/commands" ".md"
+    clean_provider_prompts "$NEXUS_DIR/.claude/prompts" ".md"
+    clean_provider_skills "$NEXUS_DIR/.claude/skills"
+    clean_provider_agents "$NEXUS_DIR/.claude/agents" ".md"
     rmdir "$NEXUS_DIR/.claude" 2>/dev/null || true
   fi
 }
@@ -1758,17 +1869,26 @@ sync_gemini() {
     if gemini_prompts_enabled; then
       sync_provider_prompts "$NEXUS_DIR/.gemini/prompts" ".prompt.md"
     else
-      rm -rf "$NEXUS_DIR/.gemini/prompts" 2>/dev/null || true
+      clean_provider_prompts "$NEXUS_DIR/.gemini/prompts" ".prompt.md"
     fi
 
     if gemini_skills_enabled; then
       sync_provider_skills "$NEXUS_DIR/.gemini/skills"
     else
-      rm -rf "$NEXUS_DIR/.gemini/skills" 2>/dev/null || true
+      clean_provider_skills "$NEXUS_DIR/.gemini/skills"
+    fi
+
+    if gemini_agents_enabled; then
+      sync_provider_agents "$NEXUS_DIR/.gemini/agents" ".md"
+    else
+      clean_provider_agents "$NEXUS_DIR/.gemini/agents" ".md"
     fi
   else
     clean_rnex_instructions "$NEXUS_DIR/GEMINI.md"
-    rm -rf "$NEXUS_DIR/.gemini/prompts" "$NEXUS_DIR/.gemini/skills" "$NEXUS_DIR/.gemini/rules" 2>/dev/null || true
+    clean_provider_prompts "$NEXUS_DIR/.gemini/prompts" ".prompt.md"
+    clean_provider_skills "$NEXUS_DIR/.gemini/skills"
+    clean_provider_agents "$NEXUS_DIR/.gemini/agents" ".md"
+    rmdir "$NEXUS_DIR/.gemini/rules" 2>/dev/null || true
     rmdir "$NEXUS_DIR/.gemini" 2>/dev/null || true
   fi
 }
@@ -1790,24 +1910,32 @@ sync_cursor() {
       clean_rnex_instructions "$NEXUS_DIR/.cursorrules"
       rm -f "$NEXUS_DIR/.cursor/rules/repo-nexus.mdc" 2>/dev/null || true
       rmdir "$NEXUS_DIR/.cursor/rules" 2>/dev/null || true
-      rmdir "$NEXUS_DIR/.cursor" 2>/dev/null || true
     fi
 
     if cursor_prompts_enabled; then
       sync_provider_prompts "$NEXUS_DIR/.cursor/prompts" ".md"
     else
-      rm -rf "$NEXUS_DIR/.cursor/prompts" 2>/dev/null || true
+      clean_provider_prompts "$NEXUS_DIR/.cursor/prompts" ".md"
     fi
 
     if cursor_skills_enabled; then
       sync_provider_skills "$NEXUS_DIR/.cursor/skills"
     else
-      rm -rf "$NEXUS_DIR/.cursor/skills" 2>/dev/null || true
+      clean_provider_skills "$NEXUS_DIR/.cursor/skills"
+    fi
+
+    if cursor_agents_enabled; then
+      sync_provider_agents "$NEXUS_DIR/.cursor/agents" ".md"
+    else
+      clean_provider_agents "$NEXUS_DIR/.cursor/agents" ".md"
     fi
   else
     clean_rnex_instructions "$NEXUS_DIR/.cursorrules"
-    rm -rf "$NEXUS_DIR/.cursor/prompts" "$NEXUS_DIR/.cursor/skills" "$NEXUS_DIR/.cursor/rules/repo-nexus.mdc" 2>/dev/null || true
+    rm -f "$NEXUS_DIR/.cursor/rules/repo-nexus.mdc" 2>/dev/null || true
     rmdir "$NEXUS_DIR/.cursor/rules" 2>/dev/null || true
+    clean_provider_prompts "$NEXUS_DIR/.cursor/prompts" ".md"
+    clean_provider_skills "$NEXUS_DIR/.cursor/skills"
+    clean_provider_agents "$NEXUS_DIR/.cursor/agents" ".md"
     rmdir "$NEXUS_DIR/.cursor" 2>/dev/null || true
   fi
 }
@@ -1823,17 +1951,25 @@ sync_windsurf() {
     if windsurf_prompts_enabled; then
       sync_provider_prompts "$NEXUS_DIR/.windsurf/prompts" ".md"
     else
-      rm -rf "$NEXUS_DIR/.windsurf/prompts" 2>/dev/null || true
+      clean_provider_prompts "$NEXUS_DIR/.windsurf/prompts" ".md"
     fi
 
     if windsurf_skills_enabled; then
       sync_provider_skills "$NEXUS_DIR/.windsurf/skills"
     else
-      rm -rf "$NEXUS_DIR/.windsurf/skills" 2>/dev/null || true
+      clean_provider_skills "$NEXUS_DIR/.windsurf/skills"
+    fi
+
+    if windsurf_agents_enabled; then
+      sync_provider_agents "$NEXUS_DIR/.windsurf/agents" ".md"
+    else
+      clean_provider_agents "$NEXUS_DIR/.windsurf/agents" ".md"
     fi
   else
     clean_rnex_instructions "$NEXUS_DIR/.windsurfrules"
-    rm -rf "$NEXUS_DIR/.windsurf/prompts" "$NEXUS_DIR/.windsurf/skills" 2>/dev/null || true
+    clean_provider_prompts "$NEXUS_DIR/.windsurf/prompts" ".md"
+    clean_provider_skills "$NEXUS_DIR/.windsurf/skills"
+    clean_provider_agents "$NEXUS_DIR/.windsurf/agents" ".md"
     rmdir "$NEXUS_DIR/.windsurf" 2>/dev/null || true
   fi
 }
@@ -2270,16 +2406,16 @@ cmd_init() {
       _init_plugins="${_init_plugins}  copilot:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n"
     fi
     if [ "$_cli_claude" = "true" ]; then
-      _init_plugins="${_init_plugins}  claude:\n    instructions: true\n    prompts: true\n    skills: true\n"
+      _init_plugins="${_init_plugins}  claude:\n    instructions: true\n    prompts: true\n    skills: true\n    agents: true\n"
     fi
     if [ "$_cli_gemini" = "true" ]; then
-      _init_plugins="${_init_plugins}  gemini:\n    instructions: true\n    prompts: true\n    skills: true\n"
+      _init_plugins="${_init_plugins}  gemini:\n    instructions: true\n    prompts: true\n    skills: true\n    agents: true\n"
     fi
     if [ "$_cli_cursor" = "true" ]; then
-      _init_plugins="${_init_plugins}  cursor:\n    instructions: true\n    prompts: true\n    skills: true\n"
+      _init_plugins="${_init_plugins}  cursor:\n    instructions: true\n    prompts: true\n    skills: true\n    agents: true\n"
     fi
     if [ "$_cli_windsurf" = "true" ]; then
-      _init_plugins="${_init_plugins}  windsurf:\n    instructions: true\n    prompts: true\n    skills: true\n"
+      _init_plugins="${_init_plugins}  windsurf:\n    instructions: true\n    prompts: true\n    skills: true\n    agents: true\n"
     fi
 
     cat > "$_target_yaml" <<YAML_EOF
@@ -2822,11 +2958,17 @@ cmd_status() {
   if [ -d "$NEXUS_DIR/.claude/skills" ]; then
     printf '  %b✓%b %s %b(Claude skills)%b\n' "$_G" "$_NC" ".claude/skills/" "$_DIM" "$_NC"
   fi
+  if [ -d "$NEXUS_DIR/.claude/agents" ]; then
+    printf '  %b✓%b %s %b(Claude agents)%b\n' "$_G" "$_NC" ".claude/agents/" "$_DIM" "$_NC"
+  fi
   if [ -d "$NEXUS_DIR/.gemini/prompts" ]; then
     printf '  %b✓%b %s %b(Gemini prompts)%b\n' "$_G" "$_NC" ".gemini/prompts/" "$_DIM" "$_NC"
   fi
   if [ -d "$NEXUS_DIR/.gemini/skills" ]; then
     printf '  %b✓%b %s %b(Gemini skills)%b\n' "$_G" "$_NC" ".gemini/skills/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.gemini/agents" ]; then
+    printf '  %b✓%b %s %b(Gemini agents)%b\n' "$_G" "$_NC" ".gemini/agents/" "$_DIM" "$_NC"
   fi
   if [ -d "$NEXUS_DIR/.cursor/prompts" ]; then
     printf '  %b✓%b %s %b(Cursor prompts)%b\n' "$_G" "$_NC" ".cursor/prompts/" "$_DIM" "$_NC"
@@ -2834,11 +2976,17 @@ cmd_status() {
   if [ -d "$NEXUS_DIR/.cursor/skills" ]; then
     printf '  %b✓%b %s %b(Cursor skills)%b\n' "$_G" "$_NC" ".cursor/skills/" "$_DIM" "$_NC"
   fi
+  if [ -d "$NEXUS_DIR/.cursor/agents" ]; then
+    printf '  %b✓%b %s %b(Cursor agents)%b\n' "$_G" "$_NC" ".cursor/agents/" "$_DIM" "$_NC"
+  fi
   if [ -d "$NEXUS_DIR/.windsurf/prompts" ]; then
     printf '  %b✓%b %s %b(Windsurf prompts)%b\n' "$_G" "$_NC" ".windsurf/prompts/" "$_DIM" "$_NC"
   fi
   if [ -d "$NEXUS_DIR/.windsurf/skills" ]; then
     printf '  %b✓%b %s %b(Windsurf skills)%b\n' "$_G" "$_NC" ".windsurf/skills/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.windsurf/agents" ]; then
+    printf '  %b✓%b %s %b(Windsurf agents)%b\n' "$_G" "$_NC" ".windsurf/agents/" "$_DIM" "$_NC"
   fi
   printf '\n'
 
@@ -2867,10 +3015,11 @@ cmd_status() {
                 "$(copilot_agents_enabled && echo "true" || echo "false")" "$_NC"
               ;;
             claude|gemini|cursor|windsurf)
-              printf '    %b↳ Options: instructions=%s, prompts=%s, skills=%s%b\n' "$_DIM" \
+              printf '    %b↳ Options: instructions=%s, prompts=%s, skills=%s, agents=%s%b\n' "$_DIM" \
                 "$(provider_option_enabled "$_pname" "instructions" && echo "true" || echo "false")" \
                 "$(provider_option_enabled "$_pname" "prompts" && echo "true" || echo "false")" \
-                "$(provider_option_enabled "$_pname" "skills" && echo "true" || echo "false")" "$_NC"
+                "$(provider_option_enabled "$_pname" "skills" && echo "true" || echo "false")" \
+                "$(provider_option_enabled "$_pname" "agents" && echo "true" || echo "false")" "$_NC"
               ;;
           esac
         fi
@@ -2958,10 +3107,6 @@ cmd_fix() {
   elif ! has_ai_provider_plugin_enabled; then
     merge_rnex_instructions "$NEXUS_DIR/AGENTS.md"
   fi
-  [ -f "$NEXUS_DIR/CLAUDE.md" ] && ! claude_plugin_enabled && merge_rnex_instructions "$NEXUS_DIR/CLAUDE.md"
-  [ -f "$NEXUS_DIR/GEMINI.md" ] && ! gemini_plugin_enabled && merge_rnex_instructions "$NEXUS_DIR/GEMINI.md"
-  [ -f "$NEXUS_DIR/.cursorrules" ] && ! cursor_plugin_enabled && merge_rnex_instructions "$NEXUS_DIR/.cursorrules"
-  [ -f "$NEXUS_DIR/.windsurfrules" ] && ! windsurf_plugin_enabled && merge_rnex_instructions "$NEXUS_DIR/.windsurfrules"
 
   # 3. Sync standard prompts to .rnex/prompts/
   sync_prompts
@@ -3117,21 +3262,25 @@ cmd_plugin_info() {
     printf '  - instructions: true|false  (mirror instructions to CLAUDE.md; current: %s)\n' "$(claude_instructions_enabled && echo "true" || echo "false")"
     printf '  - prompts: true|false  (mirror prompts to .claude/commands/ and .claude/prompts/; current: %s)\n' "$(claude_prompts_enabled && echo "true" || echo "false")"
     printf '  - skills: true|false  (mirror skills to .claude/skills/<name>/SKILL.md; current: %s)\n' "$(claude_skills_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .claude/agents/*.md; current: %s)\n' "$(claude_agents_enabled && echo "true" || echo "false")"
   elif [ "$_name" = "gemini" ]; then
     printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
     printf '  - instructions: true|false  (mirror instructions to GEMINI.md; current: %s)\n' "$(gemini_instructions_enabled && echo "true" || echo "false")"
     printf '  - prompts: true|false  (mirror prompts to .gemini/prompts/; current: %s)\n' "$(gemini_prompts_enabled && echo "true" || echo "false")"
     printf '  - skills: true|false  (mirror skills to .gemini/skills/<name>/SKILL.md; current: %s)\n' "$(gemini_skills_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .gemini/agents/*.md; current: %s)\n' "$(gemini_agents_enabled && echo "true" || echo "false")"
   elif [ "$_name" = "cursor" ]; then
     printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
     printf '  - instructions: true|false  (mirror instructions to .cursorrules & .cursor/rules/; current: %s)\n' "$(cursor_instructions_enabled && echo "true" || echo "false")"
     printf '  - prompts: true|false  (mirror prompts to .cursor/prompts/; current: %s)\n' "$(cursor_prompts_enabled && echo "true" || echo "false")"
     printf '  - skills: true|false  (mirror skills to .cursor/skills/<name>/SKILL.md; current: %s)\n' "$(cursor_skills_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .cursor/agents/*.md; current: %s)\n' "$(cursor_agents_enabled && echo "true" || echo "false")"
   elif [ "$_name" = "windsurf" ]; then
     printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
     printf '  - instructions: true|false  (mirror instructions to .windsurfrules; current: %s)\n' "$(windsurf_instructions_enabled && echo "true" || echo "false")"
     printf '  - prompts: true|false  (mirror prompts to .windsurf/prompts/; current: %s)\n' "$(windsurf_prompts_enabled && echo "true" || echo "false")"
     printf '  - skills: true|false  (mirror skills to .windsurf/skills/<name>/SKILL.md; current: %s)\n' "$(windsurf_skills_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .windsurf/agents/*.md; current: %s)\n' "$(windsurf_agents_enabled && echo "true" || echo "false")"
   fi
 
   printf '\n%bScoped Directory:%b .rnex/plugins/%s\n' "$_BOLD" "$_NC" "$_name"

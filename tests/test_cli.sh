@@ -679,12 +679,25 @@ EOF
 [ ! -f "$TEST_COPILOT_WS/.github/prompts/wiki-ingest.prompt.md" ] || { fail "Plugin prompts not cleaned up when prompts: false"; exit 1; }
 [ -f "$TEST_COPILOT_WS/.github/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "Skills removed when skills: true"; exit 1; }
 
+# Add custom user skill, agent, and prompt to verify preservation
+mkdir -p "$TEST_COPILOT_WS/.github/skills/user-custom-skill"
+echo "# User Skill" > "$TEST_COPILOT_WS/.github/skills/user-custom-skill/SKILL.md"
+mkdir -p "$TEST_COPILOT_WS/.github/agents"
+echo "# User Agent" > "$TEST_COPILOT_WS/.github/agents/user-custom.agent.md"
+mkdir -p "$TEST_COPILOT_WS/.github/prompts"
+echo "# User Prompt" > "$TEST_COPILOT_WS/.github/prompts/user-custom.prompt.md"
+
 # Disable copilot via local override and run fix
 (cd "$TEST_COPILOT_WS" && ./rnex plugin disable --local copilot >/dev/null)
 (cd "$TEST_COPILOT_WS" && ./rnex fix -y --quiet >/dev/null)
 [ ! -f "$TEST_COPILOT_WS/.github/prompts/rnex-cross-repo-feature.prompt.md" ] || { fail "Prompts not cleaned up when copilot disabled locally"; exit 1; }
 [ ! -d "$TEST_COPILOT_WS/.github/skills/rnex-cross-repo-feature" ] || { fail "Skills not cleaned up when copilot disabled locally"; exit 1; }
-[ ! -d "$TEST_COPILOT_WS/.github/agents" ] || { fail "Agents not cleaned up when copilot disabled locally"; exit 1; }
+[ ! -f "$TEST_COPILOT_WS/.github/agents/wiki-curator.agent.md" ] || { fail "Plugin agents not cleaned up when copilot disabled locally"; exit 1; }
+
+# Verify custom user skills, agents, and prompts are preserved
+[ -f "$TEST_COPILOT_WS/.github/skills/user-custom-skill/SKILL.md" ] || { fail "User custom skill deleted when copilot disabled"; exit 1; }
+[ -f "$TEST_COPILOT_WS/.github/agents/user-custom.agent.md" ] || { fail "User custom agent deleted when copilot disabled"; exit 1; }
+[ -f "$TEST_COPILOT_WS/.github/prompts/user-custom.prompt.md" ] || { fail "User custom prompt deleted when copilot disabled"; exit 1; }
 
 # Verify status reflects local disable
 _cop_status_disabled="$(cd "$TEST_COPILOT_WS" && ./rnex status 2>&1)"
@@ -736,8 +749,47 @@ echo "$_prov_status" | grep -q "\.windsurfrules" || { fail "Status did not repor
 
 # Test user custom content preservation across provider instructions
 printf "# Custom Section\n" >> "$TEST_PROVIDERS_WS/CLAUDE.md"
+printf "# Gemini Custom\n" >> "$TEST_PROVIDERS_WS/GEMINI.md"
+printf "# Cursor Custom\n" >> "$TEST_PROVIDERS_WS/.cursorrules"
+printf "# Windsurf Custom\n" >> "$TEST_PROVIDERS_WS/.windsurfrules"
 (cd "$TEST_PROVIDERS_WS" && ./rnex fix -y --quiet >/dev/null)
 grep -q "# Custom Section" "$TEST_PROVIDERS_WS/CLAUDE.md" || { fail "Custom section lost in CLAUDE.md"; exit 1; }
+grep -q "# Gemini Custom" "$TEST_PROVIDERS_WS/GEMINI.md" || { fail "Custom section lost in GEMINI.md"; exit 1; }
+grep -q "# Cursor Custom" "$TEST_PROVIDERS_WS/.cursorrules" || { fail "Custom section lost in .cursorrules"; exit 1; }
+grep -q "# Windsurf Custom" "$TEST_PROVIDERS_WS/.windsurfrules" || { fail "Custom section lost in .windsurfrules"; exit 1; }
+
+# Add custom user skills, prompts, agents, and extra files across all providers
+mkdir -p "$TEST_PROVIDERS_WS/.claude/skills/my-claude-skill"
+echo "custom" > "$TEST_PROVIDERS_WS/.claude/skills/my-claude-skill/SKILL.md"
+mkdir -p "$TEST_PROVIDERS_WS/.claude/skills/rnex-cross-repo-feature"
+echo "extra user file" > "$TEST_PROVIDERS_WS/.claude/skills/rnex-cross-repo-feature/extra.txt"
+mkdir -p "$TEST_PROVIDERS_WS/.claude/commands"
+echo "custom" > "$TEST_PROVIDERS_WS/.claude/commands/my-cmd.md"
+mkdir -p "$TEST_PROVIDERS_WS/.claude/agents"
+echo "custom" > "$TEST_PROVIDERS_WS/.claude/agents/my-agent.md"
+
+mkdir -p "$TEST_PROVIDERS_WS/.gemini/skills/my-gemini-skill"
+echo "custom" > "$TEST_PROVIDERS_WS/.gemini/skills/my-gemini-skill/SKILL.md"
+mkdir -p "$TEST_PROVIDERS_WS/.gemini/prompts"
+echo "custom" > "$TEST_PROVIDERS_WS/.gemini/prompts/my-prompt.prompt.md"
+mkdir -p "$TEST_PROVIDERS_WS/.gemini/agents"
+echo "custom" > "$TEST_PROVIDERS_WS/.gemini/agents/my-agent.md"
+
+mkdir -p "$TEST_PROVIDERS_WS/.cursor/skills/my-cursor-skill"
+echo "custom" > "$TEST_PROVIDERS_WS/.cursor/skills/my-cursor-skill/SKILL.md"
+mkdir -p "$TEST_PROVIDERS_WS/.cursor/prompts"
+echo "custom" > "$TEST_PROVIDERS_WS/.cursor/prompts/my-prompt.md"
+mkdir -p "$TEST_PROVIDERS_WS/.cursor/agents"
+echo "custom" > "$TEST_PROVIDERS_WS/.cursor/agents/my-agent.md"
+mkdir -p "$TEST_PROVIDERS_WS/.cursor/rules"
+echo "custom" > "$TEST_PROVIDERS_WS/.cursor/rules/my-user-rule.mdc"
+
+mkdir -p "$TEST_PROVIDERS_WS/.windsurf/skills/my-windsurf-skill"
+echo "custom" > "$TEST_PROVIDERS_WS/.windsurf/skills/my-windsurf-skill/SKILL.md"
+mkdir -p "$TEST_PROVIDERS_WS/.windsurf/prompts"
+echo "custom" > "$TEST_PROVIDERS_WS/.windsurf/prompts/my-prompt.md"
+mkdir -p "$TEST_PROVIDERS_WS/.windsurf/agents"
+echo "custom" > "$TEST_PROVIDERS_WS/.windsurf/agents/my-agent.md"
 
 # Disable all provider plugins and verify AGENTS.md restored as fallback default
 (cd "$TEST_PROVIDERS_WS" && ./rnex plugin disable claude >/dev/null)
@@ -747,18 +799,46 @@ grep -q "# Custom Section" "$TEST_PROVIDERS_WS/CLAUDE.md" || { fail "Custom sect
 (cd "$TEST_PROVIDERS_WS" && ./rnex fix -y --quiet >/dev/null)
 
 [ -f "$TEST_PROVIDERS_WS/AGENTS.md" ] || { fail "AGENTS.md not restored when all AI provider plugins disabled"; exit 1; }
-[ ! -d "$TEST_PROVIDERS_WS/.claude" ] || { fail ".claude directory not cleaned up"; exit 1; }
-[ ! -d "$TEST_PROVIDERS_WS/.gemini" ] || { fail ".gemini directory not cleaned up"; exit 1; }
-[ ! -d "$TEST_PROVIDERS_WS/.cursor" ] || { fail ".cursor directory not cleaned up"; exit 1; }
-[ ! -d "$TEST_PROVIDERS_WS/.windsurf" ] || { fail ".windsurf directory not cleaned up"; exit 1; }
-# CLAUDE.md retained custom user content but stripped REPO-NEXUS block
-[ -f "$TEST_PROVIDERS_WS/CLAUDE.md" ] || { fail "CLAUDE.md with custom content was deleted"; exit 1; }
-grep -q "# Custom Section" "$TEST_PROVIDERS_WS/CLAUDE.md" || { fail "Custom content lost from CLAUDE.md after disable"; exit 1; }
-! grep -q "REPO-NEXUS:START" "$TEST_PROVIDERS_WS/CLAUDE.md" || { fail "REPO-NEXUS block not stripped from CLAUDE.md after disable"; exit 1; }
-# GEMINI.md, .cursorrules, .windsurfrules had no custom content so were cleanly deleted
-[ ! -f "$TEST_PROVIDERS_WS/GEMINI.md" ] || { fail "GEMINI.md without custom content not deleted"; exit 1; }
-[ ! -f "$TEST_PROVIDERS_WS/.cursorrules" ] || { fail ".cursorrules without custom content not deleted"; exit 1; }
-[ ! -f "$TEST_PROVIDERS_WS/.windsurfrules" ] || { fail ".windsurfrules without custom content not deleted"; exit 1; }
+
+# Verify Repo Nexus generated assets were cleaned up
+[ ! -f "$TEST_PROVIDERS_WS/.claude/commands/rnex-cross-repo-feature.md" ] || { fail "rnex prompt not cleaned from claude"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.claude/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "rnex skill not cleaned from claude"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.gemini/prompts/rnex-cross-repo-feature.prompt.md" ] || { fail "rnex prompt not cleaned from gemini"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.gemini/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "rnex skill not cleaned from gemini"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.cursor/rules/repo-nexus.mdc" ] || { fail "repo-nexus.mdc not cleaned from cursor"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.cursor/prompts/rnex-cross-repo-feature.md" ] || { fail "rnex prompt not cleaned from cursor"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.cursor/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "rnex skill not cleaned from cursor"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.windsurf/prompts/rnex-cross-repo-feature.md" ] || { fail "rnex prompt not cleaned from windsurf"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.windsurf/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "rnex skill not cleaned from windsurf"; exit 1; }
+
+# Verify ALL user custom files were preserved
+[ -f "$TEST_PROVIDERS_WS/.claude/skills/my-claude-skill/SKILL.md" ] || { fail "User skill deleted from .claude"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.claude/skills/rnex-cross-repo-feature/extra.txt" ] || { fail "User extra file in skill dir deleted from .claude"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.claude/commands/my-cmd.md" ] || { fail "User command deleted from .claude"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.claude/agents/my-agent.md" ] || { fail "User agent deleted from .claude"; exit 1; }
+
+[ -f "$TEST_PROVIDERS_WS/.gemini/skills/my-gemini-skill/SKILL.md" ] || { fail "User skill deleted from .gemini"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.gemini/prompts/my-prompt.prompt.md" ] || { fail "User prompt deleted from .gemini"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.gemini/agents/my-agent.md" ] || { fail "User agent deleted from .gemini"; exit 1; }
+
+[ -f "$TEST_PROVIDERS_WS/.cursor/rules/my-user-rule.mdc" ] || { fail "User rule deleted from .cursor"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.cursor/skills/my-cursor-skill/SKILL.md" ] || { fail "User skill deleted from .cursor"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.cursor/prompts/my-prompt.md" ] || { fail "User prompt deleted from .cursor"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.cursor/agents/my-agent.md" ] || { fail "User agent deleted from .cursor"; exit 1; }
+
+[ -f "$TEST_PROVIDERS_WS/.windsurf/skills/my-windsurf-skill/SKILL.md" ] || { fail "User skill deleted from .windsurf"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.windsurf/prompts/my-prompt.md" ] || { fail "User prompt deleted from .windsurf"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.windsurf/agents/my-agent.md" ] || { fail "User agent deleted from .windsurf"; exit 1; }
+
+# Instruction files retained custom user content but stripped REPO-NEXUS block
+for _f in CLAUDE.md GEMINI.md .cursorrules .windsurfrules; do
+  [ -f "$TEST_PROVIDERS_WS/$_f" ] || { fail "$_f with custom content was deleted"; exit 1; }
+  ! grep -q "REPO-NEXUS:START" "$TEST_PROVIDERS_WS/$_f" || { fail "REPO-NEXUS block not stripped from $_f"; exit 1; }
+done
+grep -q "# Custom Section" "$TEST_PROVIDERS_WS/CLAUDE.md" || { fail "Custom content lost from CLAUDE.md"; exit 1; }
+grep -q "# Gemini Custom" "$TEST_PROVIDERS_WS/GEMINI.md" || { fail "Custom content lost from GEMINI.md"; exit 1; }
+grep -q "# Cursor Custom" "$TEST_PROVIDERS_WS/.cursorrules" || { fail "Custom content lost from .cursorrules"; exit 1; }
+grep -q "# Windsurf Custom" "$TEST_PROVIDERS_WS/.windsurfrules" || { fail "Custom content lost from .windsurfrules"; exit 1; }
 pass
 
 # ==========================================================================

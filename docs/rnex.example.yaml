@@ -76,13 +76,13 @@ git_hooks: true
 #   copilot        — GitHub Copilot integration: mirrors operational prompts, skills,
 #                    agents, and synthesized instructions into .github/
 #   claude         — Anthropic Claude Code integration: maintains CLAUDE.md instructions
-#                    and mirrors commands, prompts, and skills into .claude/
+#                    and mirrors commands, prompts, skills, and agents into .claude/
 #   gemini         — Google Gemini / Antigravity integration: maintains GEMINI.md instructions
-#                    and mirrors prompts and skills into .gemini/
+#                    and mirrors prompts, skills, and agents into .gemini/
 #   cursor         — Cursor IDE integration: maintains .cursorrules / .cursor/rules/
-#                    and mirrors prompts and skills into .cursor/
+#                    and mirrors prompts, skills, and agents into .cursor/
 #   windsurf       — Windsurf IDE integration: maintains .windsurfrules
-#                    and mirrors prompts and skills into .windsurf/
+#                    and mirrors prompts, skills, and agents into .windsurf/
 #   karpathy-llm   — Andrej Karpathy's agent behavioral principles,
 #                    context engineering guidelines, and LLM Wiki architecture
 
@@ -96,18 +96,22 @@ plugins:
   #   instructions: true   # maintain routing in CLAUDE.md (default: true)
   #   prompts: true        # mirror commands & prompts to .claude/commands/ (default: true)
   #   skills: true         # mirror skills to .claude/skills/ (default: true)
+  #   agents: true         # mirror custom agents to .claude/agents/ (default: true)
   # gemini:
   #   instructions: true   # maintain routing in GEMINI.md (default: true)
   #   prompts: true        # mirror prompts to .gemini/prompts/ (default: true)
   #   skills: true         # mirror skills to .gemini/skills/ (default: true)
+  #   agents: true         # mirror custom agents to .gemini/agents/ (default: true)
   # cursor:
   #   instructions: true   # maintain routing in .cursorrules & .cursor/rules/ (default: true)
   #   prompts: true        # mirror prompts to .cursor/prompts/ (default: true)
   #   skills: true         # mirror skills to .cursor/skills/ (default: true)
+  #   agents: true         # mirror custom agents to .cursor/agents/ (default: true)
   # windsurf:
   #   instructions: true   # maintain routing in .windsurfrules (default: true)
   #   prompts: true        # mirror prompts to .windsurf/prompts/ (default: true)
   #   skills: true         # mirror skills to .windsurf/skills/ (default: true)
+  #   agents: true         # mirror custom agents to .windsurf/agents/ (default: true)
   # karpathy-llm: {}
 
 # ------------------------------------------------------------------------------

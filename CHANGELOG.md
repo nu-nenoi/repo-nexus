@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Older configurations specifying `ai_instructions: CLAUDE.md | GEMINI.md | .cursorrules` are automatically migrated to enable the respective plugin and stripped of the legacy key during `rnex fix`.
 
 ### Fixed
+- **Surgical Non-Destructive Cleanup of Skills, Agents, and Prompts**:
+  - Replaced destructive `rm -rf` on `.github/skills`, `.github/agents`, and provider directories with targeted cleanup (`clean_provider_skills`, `clean_provider_prompts`, `clean_copilot_agents`).
+  - Only Repo Nexus base prompts (`rnex-*`) and active plugin-generated skills/agents/prompts are removed during disable or reconciliation.
+  - User-authored custom skills in `.github/skills/`, custom agents in `.github/agents/`, and custom prompts are now safely preserved regardless of whether a provider plugin is enabled or disabled.
 - **Variable Shadowing and Directory Creation in Hook / Init Synchronization**:
   - Fixed variable name shadowing (`_target_dir`) across `cmd_init` and provider sync routines in POSIX shell.
   - Ensured target directories are created before moving temporary hook files in `_create_hook_script`.
