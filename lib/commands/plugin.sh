@@ -1,0 +1,235 @@
+# ============================================================================
+# lib/commands/plugin.sh — Plugin management commands
+# ============================================================================
+
+cmd_plugin_list() {
+  require_workspace
+  printf '\n%b%s%b\n' "$_B" "Repo Nexus Plugins" "$_NC"
+  printf '=%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18
+  printf '\n\n'
+
+  list_all_available_plugin_dirs | while read -r _pdir; do
+    [ -n "$_pdir" ] || continue
+    _name="$(plugin_get_field "$_pdir" "name")"
+    [ -n "$_name" ] || _name="$(basename "$_pdir")"
+    _version="$(plugin_get_field "$_pdir" "version")"
+    _desc="$(plugin_get_field "$_pdir" "description")"
+
+    if yaml_has_plugin "$_name"; then
+      printf '  %b[enabled]%b   %b%-15s%b %b(v%s)%b - %s\n' \
+        "$_G" "$_NC" "$_BOLD" "$_name" "$_NC" "$_DIM" "${_version:-0.1.0}" "$_NC" "$_desc"
+    else
+      printf '  %b[available]%b %b%-15s%b %b(v%s)%b - %s\n' \
+        "$_DIM" "$_NC" "$_BOLD" "$_name" "$_NC" "$_DIM" "${_version:-0.1.0}" "$_NC" "$_desc"
+    fi
+  done
+  printf '\n'
+  log_dim "To enable a plugin:  rnex plugin enable <name>"
+  log_dim "To view details:    rnex plugin info <name>"
+  log_dim "To disable:         rnex plugin disable <name>"
+  printf '\n'
+}
+
+cmd_plugin_info() {
+  require_workspace
+  _pname="$1"
+  [ -n "$_pname" ] || die "Usage: rnex plugin info <name>"
+
+  _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+  [ -n "$_pdir" ] || die "Plugin '$_pname' not found."
+
+  _name="$(plugin_get_field "$_pdir" "name")"
+  [ -n "$_name" ] || _name="$_pname"
+  _ver="$(plugin_get_field "$_pdir" "version")"
+  _desc="$(plugin_get_field "$_pdir" "description")"
+  _author="$(plugin_get_field "$_pdir" "author")"
+  _home="$(plugin_get_field "$_pdir" "homepage")"
+
+  if yaml_plugin_enabled "$_name"; then
+    _status="${_G}enabled${_NC}"
+  elif yaml_has_plugin "$_name"; then
+    _status="${_DIM}disabled locally (${WORKSPACE_LOCAL_YAML})${_NC}"
+  else
+    _status="${_DIM}available (not enabled)${_NC}"
+  fi
+
+  printf '\n'
+  printf '%bPlugin:%b       %b%s%b %b(v%s)%b\n' "$_BOLD" "$_NC" "$_BOLD" "$_name" "$_NC" "$_DIM" "${_ver:-0.1.0}" "$_NC"
+  printf '%bStatus:%b       %b\n' "$_BOLD" "$_NC" "$_status"
+  [ -n "$_desc" ] && printf '%bDescription:%b  %s\n' "$_BOLD" "$_NC" "$_desc"
+  [ -n "$_author" ] && printf '%bAuthor:%b       %s\n' "$_BOLD" "$_NC" "$_author"
+  [ -n "$_home" ] && printf '%bHomepage:%b     %s\n' "$_BOLD" "$_NC" "$_home"
+  printf '%bLocation:%b     %s\n' "$_BOLD" "$_NC" "$_pdir"
+
+  if [ "$_name" = "copilot" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - prompts: true|false  (mirror prompts to .github/prompts/*.prompt.md; current: %s)\n' "$(copilot_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .github/skills/<name>/SKILL.md; current: %s)\n' "$(copilot_skills_enabled && echo "true" || echo "false")"
+    printf '  - instructions: true|false  (mirror instructions to .github/copilot-instructions.md; current: %s)\n' "$(copilot_instructions_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .github/agents/*.agent.md; current: %s)\n' "$(copilot_agents_enabled && echo "true" || echo "false")"
+  elif [ "$_name" = "claude" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - instructions: true|false  (mirror instructions to CLAUDE.md; current: %s)\n' "$(claude_instructions_enabled && echo "true" || echo "false")"
+    printf '  - prompts: true|false  (mirror prompts to .claude/commands/ and .claude/prompts/; current: %s)\n' "$(claude_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .claude/skills/<name>/SKILL.md; current: %s)\n' "$(claude_skills_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .claude/agents/*.md; current: %s)\n' "$(claude_agents_enabled && echo "true" || echo "false")"
+  elif [ "$_name" = "gemini" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - instructions: true|false  (mirror instructions to GEMINI.md; current: %s)\n' "$(gemini_instructions_enabled && echo "true" || echo "false")"
+    printf '  - prompts: true|false  (mirror prompts to .gemini/prompts/; current: %s)\n' "$(gemini_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .gemini/skills/<name>/SKILL.md; current: %s)\n' "$(gemini_skills_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .gemini/agents/*.md; current: %s)\n' "$(gemini_agents_enabled && echo "true" || echo "false")"
+  elif [ "$_name" = "cursor" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - instructions: true|false  (mirror instructions to .cursorrules & .cursor/rules/; current: %s)\n' "$(cursor_instructions_enabled && echo "true" || echo "false")"
+    printf '  - prompts: true|false  (mirror prompts to .cursor/prompts/; current: %s)\n' "$(cursor_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .cursor/skills/<name>/SKILL.md; current: %s)\n' "$(cursor_skills_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .cursor/agents/*.md; current: %s)\n' "$(cursor_agents_enabled && echo "true" || echo "false")"
+  elif [ "$_name" = "windsurf" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - instructions: true|false  (mirror instructions to .windsurfrules; current: %s)\n' "$(windsurf_instructions_enabled && echo "true" || echo "false")"
+    printf '  - prompts: true|false  (mirror prompts to .windsurf/prompts/; current: %s)\n' "$(windsurf_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .windsurf/skills/<name>/SKILL.md; current: %s)\n' "$(windsurf_skills_enabled && echo "true" || echo "false")"
+    printf '  - agents: true|false  (mirror agents to .windsurf/agents/*.md; current: %s)\n' "$(windsurf_agents_enabled && echo "true" || echo "false")"
+  fi
+
+  printf '\n%bScoped Directory:%b .rnex/plugins/%s\n' "$_BOLD" "$_NC" "$_name"
+
+  _tmpl="$(plugin_list_templates "$_pdir")"
+  if [ -n "$_tmpl" ]; then
+    printf '\n%bExternal Directories & Templates:%b\n' "$_BOLD" "$_NC"
+    echo "$_tmpl" | while read -r _item; do
+      [ -n "$_item" ] || continue
+      _s="${_item%%:*}"
+      _d="${_item#*:}"
+      _s="$(printf '%s' "$_s" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      _d="$(printf '%s' "$_d" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      printf '  - %s → %s\n' "$_s" "$_d"
+    done
+  fi
+  printf '\n'
+}
+
+cmd_plugin_enable() {
+  require_workspace
+  _is_local=0
+  _pname=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --local) _is_local=1 ;;
+      *) _pname="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$_pname" ] || die "Usage: rnex plugin enable [--local] <name>"
+
+  _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+  [ -n "$_pdir" ] || die "Plugin '$_pname' not found."
+
+  _name="$(plugin_get_field "$_pdir" "name")"
+  [ -n "$_name" ] || _name="$_pname"
+
+  if [ "$_is_local" -eq 1 ]; then
+    yaml_enable_plugin "$_name" "$WORKSPACE_LOCAL_YAML"
+    log_ok "Plugin '$_name' enabled locally in $(basename "$WORKSPACE_LOCAL_YAML")"
+  else
+    yaml_enable_plugin "$_name" "$WORKSPACE_YAML"
+    log_ok "Plugin '$_name' enabled in $(basename "$WORKSPACE_YAML")"
+  fi
+
+  sync_plugins
+  cmd_fix
+  log_ok "Plugin '$_name' active in workspace (.rnex/plugins/$_name)"
+}
+
+cmd_plugin_disable() {
+  require_workspace
+  _is_local=0
+  _pname=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --local) _is_local=1 ;;
+      *) _pname="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$_pname" ] || die "Usage: rnex plugin disable [--local] <name>"
+
+  _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+  _name="$_pname"
+  if [ -n "$_pdir" ]; then
+    _n="$(plugin_get_field "$_pdir" "name")"
+    [ -n "$_n" ] && _name="$_n"
+  fi
+
+  if [ "$_is_local" -eq 1 ]; then
+    if _yaml_list_plugins_from_file "$WORKSPACE_YAML" | grep -qx "$_name" 2>/dev/null; then
+      yaml_plugin_set_local "$_name" "enabled" "false"
+      log_ok "Plugin '$_name' disabled locally in $(basename "$WORKSPACE_LOCAL_YAML")"
+    else
+      _yaml_disable_plugin_in_file "$WORKSPACE_LOCAL_YAML" "$_name"
+      log_ok "Plugin '$_name' removed from $(basename "$WORKSPACE_LOCAL_YAML")"
+    fi
+  else
+    yaml_disable_plugin "$_name"
+    log_ok "Plugin '$_name' disabled from workspace"
+  fi
+
+  if ! yaml_plugin_enabled "$_name"; then
+    if [ -d "$NEXUS_DIR/.rnex/plugins/$_name" ]; then
+      rm -rf "$NEXUS_DIR/.rnex/plugins/$_name"
+      log_ok "Removed workspace plugin scope: .rnex/plugins/$_name"
+    fi
+
+    yaml_list_repos | while read -r _rname; do
+      _rpath="$(resolve_repo_path "$_rname")"
+      if [ -d "$_rpath/.rnex/plugins/$_name" ]; then
+        rm -rf "$_rpath/.rnex/plugins/$_name"
+      fi
+    done
+  fi
+
+  sync_prompts
+  if ! has_ai_provider_plugin_enabled && [ ! -f "$NEXUS_DIR/AGENTS.md" ]; then
+    merge_rnex_instructions "$NEXUS_DIR/AGENTS.md"
+  fi
+  log_ok "Plugin '$_name' disabled from workspace"
+}
+
+cmd_rnex_dir() {
+  require_workspace
+  _action="$1"
+  _name="$2"
+
+  case "$_action" in
+    enable)
+      [ -n "$_name" ] || die "Usage: rnex rnex-dir enable <name>"
+      yaml_has_repo "$_name" || die "Repo '$_name' is not registered"
+      yaml_set "$_name" "rnex_dir" "true"
+      sync_repo_rnex "$_name"
+      log_ok "Enabled member .rnex directory for '$_name'"
+      ;;
+    disable)
+      [ -n "$_name" ] || die "Usage: rnex rnex-dir disable <name>"
+      yaml_has_repo "$_name" || die "Repo '$_name' is not registered"
+      yaml_set "$_name" "rnex_dir" "false"
+      clean_repo_rnex "$_name"
+      log_ok "Disabled member .rnex directory for '$_name'"
+      ;;
+    *)
+      die "Usage: rnex rnex-dir <enable|disable> <name>"
+      ;;
+  esac
+}
+
+cmd_plugin() {
+  _subcmd="${1:-list}"
+  shift 2>/dev/null || true
+  case "$_subcmd" in
+    list)    cmd_plugin_list "$@" ;;
+    info)    cmd_plugin_info "$@" ;;
+    enable)  cmd_plugin_enable "$@" ;;
+    disable) cmd_plugin_disable "$@" ;;
+    *)       die "Unknown plugin subcommand: $_subcmd (try 'rnex plugin list')" ;;
+  esac
+}

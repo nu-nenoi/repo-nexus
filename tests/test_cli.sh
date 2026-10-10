@@ -6,6 +6,7 @@ set -e
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="$DIR/rnex"
+export RNEX_LIB_DIR="$DIR/lib"
 
 # Configure git identity for test repository commits
 export GIT_AUTHOR_NAME="Test Runner"
@@ -35,7 +36,10 @@ chmod +x "$TEST_WORKSPACE/rnex"
 if [ -f "$DIR/package.json" ]; then
   cp "$DIR/package.json" "$TEST_WORKSPACE/package.json"
 fi
-# Copy docs and toolkit for templates and built-in plugins
+# Copy docs, toolkit, and lib for templates and built-in plugins
+if [ -d "$DIR/lib" ]; then
+  cp -r "$DIR/lib" "$TEST_WORKSPACE/lib"
+fi
 if [ -d "$DIR/docs" ]; then
   cp -r "$DIR/docs" "$TEST_WORKSPACE/docs"
 fi
