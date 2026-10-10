@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **AI Provider Plugins for Claude, Gemini, Cursor, and Windsurf**:
+  - Built-in provider plugins (`toolkit/plugins/claude/`, `toolkit/plugins/gemini/`, `toolkit/plugins/cursor/`, `toolkit/plugins/windsurf/`) alongside `copilot`.
+  - Native instructions synthesis and sync for each provider: `CLAUDE.md`, `GEMINI.md`, `.cursorrules` (and `.cursor/rules/repo-nexus.mdc`), and `.windsurfrules`.
+  - Standardized prompt mirroring to `.claude/commands/`, `.gemini/prompts/`, `.cursor/prompts/`, and `.windsurf/prompts/`.
+  - Skill mirroring to `.claude/skills/`, `.gemini/skills/`, `.cursor/skills/`, and `.windsurf/skills/`.
+  - Granular configuration options per plugin (`instructions: true|false`, `prompts: true|false`, `skills: true|false`).
+  - Added `--claude`, `--gemini`, `--cursor`, and `--windsurf` initialization flags to `rnex init`.
+  - Diagnostics and configurable provider options displayed in `rnex status`.
+- **Unified Single-Process Workspace Reconcile & Upgrade (`rnex fix`)**:
+  - Merged configuration version updates directly into `rnex fix` as a single, idempotent process.
+  - Automatically migrates older workspace manifests to the current CLI version on `rnex fix` without requiring separate update commands.
+  - `rnex update` and `rnex upgrade` are maintained as clean aliases pointing directly to `rnex fix`.
 - **Explicit `git_hooks` Workspace Configuration (`rnex.yaml` & `.local.rnex.yaml`)**:
   - Top-level `git_hooks: true|false` setting establishes the workspace configuration as the single source of truth for automated Git hooks.
   - Two-level configuration support allowing per-workstation overrides in `.local.rnex.yaml` (e.g. keeping hooks globally enabled in `rnex.yaml` while disabling locally via `rnex hooks uninstall --local`).
@@ -29,6 +41,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `--copilot` initialization flag to `rnex init` enabling the plugin in newly generated workspaces.
   - Clean reconciliation in `rnex fix`: safely removes `.github/prompts/`, `.github/skills/`, `.github/agents/`, and `.github/copilot-instructions.md` when disabled or when specific target options are toggled off.
   - Diagnostics and configurable options reporting integrated into `rnex status`.
+
+### Changed
+- **Removed `ai_instructions` Configuration in Favor of AI Provider Plugins**:
+  - Removed the legacy `ai_instructions` configuration key. `AGENTS.md` is now the workspace standard.
+  - Users choosing provider-specific files (`CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`) enable the respective AI provider plugin (`claude`, `gemini`, `cursor`, `windsurf`).
+  - When an AI provider plugin is enabled, `rnex fix` does not enforce or force-recreate `AGENTS.md`. If all provider plugins are disabled, `AGENTS.md` is cleanly restored as the fallback default.
+  - Older configurations specifying `ai_instructions: CLAUDE.md | GEMINI.md | .cursorrules` are automatically migrated to enable the respective plugin and stripped of the legacy key during `rnex fix`.
+
+### Fixed
+- **Variable Shadowing and Directory Creation in Hook / Init Synchronization**:
+  - Fixed variable name shadowing (`_target_dir`) across `cmd_init` and provider sync routines in POSIX shell.
+  - Ensured target directories are created before moving temporary hook files in `_create_hook_script`.
 
 ### Fixed
 - **Git Hooks Self-Rewrite & Wrapper Preservation**:

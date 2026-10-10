@@ -188,7 +188,7 @@ rnex list
 # Inspect workspace health, active repos, and plugin status
 rnex status
 
-# Reconcile workspace, plugins, and member .rnex/ directories (alias: sync)
+# Reconcile workspace, sync plugins, and upgrade config in a single pass (aliases: sync, update, upgrade)
 rnex fix
 
 # Unregister and delete a repository
@@ -233,7 +233,63 @@ The `copilot` plugin provides GitHub Copilot integration, automatically mirrorin
       agents: true         # mirror custom agents to .github/agents/*.agent.md (default: true)
   ```
 
-#### 2. `karpathy-llm`
+#### 2. `claude`
+The `claude` plugin integrates Anthropic's Claude Code and Claude CLI:
+* **Instructions (`CLAUDE.md`)**: Manages the root `CLAUDE.md` routing context, replacing `AGENTS.md`.
+* **Slash Commands (`.claude/commands/*.md`)**: Standardized commands (`/rnex-cross-repo-feature`, etc.) for Claude Code.
+* **Agent Skills (`.claude/skills/<name>/SKILL.md`)**: Mirrored tool skills and workflows.
+* **Configurable Options**:
+  ```yaml
+  plugins:
+    claude:
+      instructions: true   # maintain CLAUDE.md (default: true)
+      prompts: true        # mirror slash commands to .claude/commands/ (default: true)
+      skills: true         # mirror skills to .claude/skills/ (default: true)
+  ```
+
+#### 3. `gemini`
+The `gemini` plugin integrates Google Gemini CLI and Gemini Code Assist:
+* **Instructions (`GEMINI.md`)**: Manages root `GEMINI.md` context, replacing `AGENTS.md`.
+* **Prompts (`.gemini/prompts/*.prompt.md`)**: Standardized prompts formatted with YAML frontmatter.
+* **Skills (`.gemini/skills/<name>/SKILL.md`)**: Mirrored tool skills for Gemini agents.
+* **Configurable Options**:
+  ```yaml
+  plugins:
+    gemini:
+      instructions: true   # maintain GEMINI.md (default: true)
+      prompts: true        # mirror prompts to .gemini/prompts/ (default: true)
+      skills: true         # mirror skills to .gemini/skills/ (default: true)
+  ```
+
+#### 4. `cursor`
+The `cursor` plugin integrates the Cursor IDE:
+* **Instructions (`.cursorrules` & `.cursor/rules/repo-nexus.mdc`)**: Synchronizes project routing rules.
+* **Prompts (`.cursor/prompts/*.md`)**: Mirrored prompt files.
+* **Skills (`.cursor/skills/<name>/SKILL.md`)**: Mirrored agent skills.
+* **Configurable Options**:
+  ```yaml
+  plugins:
+    cursor:
+      instructions: true   # maintain .cursorrules and MDC rule (default: true)
+      prompts: true        # mirror prompts to .cursor/prompts/ (default: true)
+      skills: true         # mirror skills to .cursor/skills/ (default: true)
+  ```
+
+#### 5. `windsurf`
+The `windsurf` plugin integrates the Codeium Windsurf IDE:
+* **Instructions (`.windsurfrules`)**: Synchronizes project routing rules.
+* **Prompts (`.windsurf/prompts/*.md`)**: Mirrored prompt files.
+* **Skills (`.windsurf/skills/<name>/SKILL.md`)**: Mirrored agent skills.
+* **Configurable Options**:
+  ```yaml
+  plugins:
+    windsurf:
+      instructions: true   # maintain .windsurfrules (default: true)
+      prompts: true        # mirror prompts to .windsurf/prompts/ (default: true)
+      skills: true         # mirror skills to .windsurf/skills/ (default: true)
+  ```
+
+#### 6. `karpathy-llm`
 The `karpathy-llm` plugin packages Andrej Karpathy's verified LLM agent design patterns, context engineering principles, and the autonomous **Karpathy LLM Wiki** architecture:
 * **The 4 Cardinal Agent Rules** (`.rnex/plugins/karpathy-llm/rules/behavioral.md`):
   1. *Think Before Coding:* Formulate explicit assumptions, boundary checks, and trade-offs before writing code.

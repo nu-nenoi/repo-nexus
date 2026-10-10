@@ -144,7 +144,6 @@ require_workspace() {
     _init_local_yaml
     _load_workspace_version
     _load_repos_dir
-    _load_ai_instructions_file
     _load_code_workspace
     _load_git_hooks
     _load_copilot
@@ -175,7 +174,6 @@ require_workspace() {
   _init_local_yaml
   _load_workspace_version
   _load_repos_dir
-  _load_ai_instructions_file
   _load_code_workspace
   _load_git_hooks
   _load_copilot
@@ -220,17 +218,6 @@ _load_repos_dir() {
   esac
 }
 
-_load_ai_instructions_file() {
-  _aif=""
-  if [ -f "$WORKSPACE_LOCAL_YAML" ]; then
-    _aif="$(awk '/^(ai_instructions|ai_instructions_file):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_LOCAL_YAML")"
-  fi
-  if [ -z "$_aif" ] && [ -f "$WORKSPACE_YAML" ]; then
-    _aif="$(awk '/^(ai_instructions|ai_instructions_file):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$WORKSPACE_YAML")"
-  fi
-  _aif="$(echo "$_aif" | tr -d " \t\r\n'\"")"
-  AI_INSTRUCTIONS_FILE="${_aif:-AGENTS.md}"
-}
 
 _load_code_workspace() {
   _cw=""
@@ -377,19 +364,24 @@ yaml_plugin_enabled() {
   esac
 }
 
-copilot_plugin_enabled() {
-  if yaml_plugin_enabled "copilot"; then
+provider_plugin_enabled() {
+  _p="$1"
+  if yaml_plugin_enabled "$_p"; then
     return 0
   fi
-  case "$COPILOT_CONFIG" in
-    true|yes|1) return 0 ;;
-    *) return 1 ;;
-  esac
+  if [ "$_p" = "copilot" ]; then
+    case "$COPILOT_CONFIG" in
+      true|yes|1) return 0 ;;
+    esac
+  fi
+  return 1
 }
 
-copilot_prompts_enabled() {
-  copilot_plugin_enabled || return 1
-  _val="$(yaml_plugin_get "copilot" "prompts")"
+provider_option_enabled() {
+  _p="$1"
+  _opt="$2"
+  provider_plugin_enabled "$_p" || return 1
+  _val="$(yaml_plugin_get "$_p" "$_opt")"
   _val="$(printf '%s' "$_val" | tr '[:upper:]' '[:lower:]')"
   case "$_val" in
     false|no|0|disabled|off) return 1 ;;
@@ -397,34 +389,39 @@ copilot_prompts_enabled() {
   esac
 }
 
-copilot_skills_enabled() {
-  copilot_plugin_enabled || return 1
-  _val="$(yaml_plugin_get "copilot" "skills")"
-  _val="$(printf '%s' "$_val" | tr '[:upper:]' '[:lower:]')"
-  case "$_val" in
-    false|no|0|disabled|off) return 1 ;;
-    *) return 0 ;;
-  esac
-}
+copilot_plugin_enabled() { provider_plugin_enabled "copilot"; }
+copilot_prompts_enabled() { provider_option_enabled "copilot" "prompts"; }
+copilot_skills_enabled() { provider_option_enabled "copilot" "skills"; }
+copilot_instructions_enabled() { provider_option_enabled "copilot" "instructions"; }
+copilot_agents_enabled() { provider_option_enabled "copilot" "agents"; }
 
-copilot_instructions_enabled() {
-  copilot_plugin_enabled || return 1
-  _val="$(yaml_plugin_get "copilot" "instructions")"
-  _val="$(printf '%s' "$_val" | tr '[:upper:]' '[:lower:]')"
-  case "$_val" in
-    false|no|0|disabled|off) return 1 ;;
-    *) return 0 ;;
-  esac
-}
+claude_plugin_enabled() { provider_plugin_enabled "claude"; }
+claude_prompts_enabled() { provider_option_enabled "claude" "prompts"; }
+claude_skills_enabled() { provider_option_enabled "claude" "skills"; }
+claude_instructions_enabled() { provider_option_enabled "claude" "instructions"; }
 
-copilot_agents_enabled() {
-  copilot_plugin_enabled || return 1
-  _val="$(yaml_plugin_get "copilot" "agents")"
-  _val="$(printf '%s' "$_val" | tr '[:upper:]' '[:lower:]')"
-  case "$_val" in
-    false|no|0|disabled|off) return 1 ;;
-    *) return 0 ;;
-  esac
+gemini_plugin_enabled() { provider_plugin_enabled "gemini"; }
+gemini_prompts_enabled() { provider_option_enabled "gemini" "prompts"; }
+gemini_skills_enabled() { provider_option_enabled "gemini" "skills"; }
+gemini_instructions_enabled() { provider_option_enabled "gemini" "instructions"; }
+
+cursor_plugin_enabled() { provider_plugin_enabled "cursor"; }
+cursor_prompts_enabled() { provider_option_enabled "cursor" "prompts"; }
+cursor_skills_enabled() { provider_option_enabled "cursor" "skills"; }
+cursor_instructions_enabled() { provider_option_enabled "cursor" "instructions"; }
+
+windsurf_plugin_enabled() { provider_plugin_enabled "windsurf"; }
+windsurf_prompts_enabled() { provider_option_enabled "windsurf" "prompts"; }
+windsurf_skills_enabled() { provider_option_enabled "windsurf" "skills"; }
+windsurf_instructions_enabled() { provider_option_enabled "windsurf" "instructions"; }
+
+has_ai_provider_plugin_enabled() {
+  for _ap in claude gemini cursor windsurf; do
+    if provider_plugin_enabled "$_ap"; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 _yaml_plugin_set_in_file() {
@@ -536,37 +533,56 @@ yaml_enable_plugin() {
   fi
   if ! _yaml_list_plugins_from_file "$_target_file" | grep -qx "$_name" 2>/dev/null; then
     _tmp="$(mktemp)"
-    if [ "$_name" = "copilot" ]; then
-      awk -v name="$_name" '
-        /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
-          print
-          printf "  %s:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n", name
-          added=1
-          next
-        }
-        { print }
-        END {
-          if (!added) {
-            printf "plugins:\n  %s:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n", name
+    case "$_name" in
+      copilot)
+        awk -v name="$_name" '
+          /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
+            print
+            printf "  %s:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n", name
+            added=1
+            next
           }
-        }
-      ' "$_target_file" > "$_tmp" && mv "$_tmp" "$_target_file"
-    else
-      awk -v name="$_name" '
-        /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
-          print
-          printf "  %s: {}\n", name
-          added=1
-          next
-        }
-        { print }
-        END {
-          if (!added) {
-            printf "plugins:\n  %s: {}\n", name
+          { print }
+          END {
+            if (!added) {
+              printf "plugins:\n  %s:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n", name
+            }
           }
-        }
-      ' "$_target_file" > "$_tmp" && mv "$_tmp" "$_target_file"
-    fi
+        ' "$_target_file" > "$_tmp" && mv "$_tmp" "$_target_file"
+        ;;
+      claude|gemini|cursor|windsurf)
+        awk -v name="$_name" '
+          /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
+            print
+            printf "  %s:\n    instructions: true\n    prompts: true\n    skills: true\n", name
+            added=1
+            next
+          }
+          { print }
+          END {
+            if (!added) {
+              printf "plugins:\n  %s:\n    instructions: true\n    prompts: true\n    skills: true\n", name
+            }
+          }
+        ' "$_target_file" > "$_tmp" && mv "$_tmp" "$_target_file"
+        ;;
+      *)
+        awk -v name="$_name" '
+          /^plugins:[ ]*$/ || /^plugins:[ ]*#/ {
+            print
+            printf "  %s: {}\n", name
+            added=1
+            next
+          }
+          { print }
+          END {
+            if (!added) {
+              printf "plugins:\n  %s: {}\n", name
+            }
+          }
+        ' "$_target_file" > "$_tmp" && mv "$_tmp" "$_target_file"
+        ;;
+    esac
   else
     if [ -f "$WORKSPACE_LOCAL_YAML" ] && [ "$_target_file" = "$WORKSPACE_LOCAL_YAML" ]; then
       _yaml_plugin_set_in_file "$_target_file" "$_name" "enabled" "true"
@@ -1265,6 +1281,30 @@ merge_rnex_instructions() {
   log_ok "Merged Repo Nexus routing instructions with existing $(basename "$_dst")"
 }
 
+clean_rnex_instructions() {
+  _dst="$1"
+  [ -f "$_dst" ] || return 0
+  if grep -qF "$AI_MARKER_START" "$_dst" 2>/dev/null; then
+    _non_rnex="$(awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" '
+      $0 == s { skip=1; next }
+      $0 == e { skip=0; next }
+      !skip { print }
+    ' "$_dst" | tr -d " \t\r\n")"
+    if [ -z "$_non_rnex" ]; then
+      rm -f "$_dst"
+      log_ok "Removed $(basename "$_dst")"
+    else
+      _tmp="$(mktemp)"
+      awk -v s="$AI_MARKER_START" -v e="$AI_MARKER_END" '
+        $0 == s { skip=1; next }
+        $0 == e { skip=0; next }
+        !skip { print }
+      ' "$_dst" > "$_tmp" && mv "$_tmp" "$_dst"
+      log_ok "Removed Repo Nexus routing instructions from $(basename "$_dst")"
+    fi
+  fi
+}
+
 sync_code_workspace() {
   [ -n "$CODE_WORKSPACE_FILE" ] || return 0
   _ws_path="$NEXUS_DIR/$CODE_WORKSPACE_FILE"
@@ -1463,60 +1503,161 @@ sync_prompts() {
     cp -f "$_pfile" "$_dst_prompts/$_b"
   done
 
-  # Copilot prompts sync (.github/prompts/*.prompt.md)
-  if copilot_prompts_enabled; then
-    _copilot_prompts="$NEXUS_DIR/.github/prompts"
-    mkdir -p "$_copilot_prompts"
+  sync_ai_providers
+}
 
-    # Base toolkit prompts
-    for _pfile in "$_src_prompts"/rnex-*.md; do
-      [ -f "$_pfile" ] || continue
-      _pname="$(basename "$_pfile" .md)"
-      _desc="$(awk '
-        /^#/ { in_title=1; next }
-        in_title && /^[A-Za-z]/ { print; exit }
-      ' "$_pfile" 2>/dev/null)"
-      [ -n "$_desc" ] || _desc="Repo Nexus prompt for $_pname"
+sync_provider_prompts() {
+  _sp_dir="$1"
+  _ext="${2:-.md}"
+  [ -n "$_src_prompts" ] || return 0
+  mkdir -p "$_sp_dir"
 
-      _dst_cp="$_copilot_prompts/$_pname.prompt.md"
-      {
-        printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_pname" "$_desc"
-        cat "$_pfile"
-      } > "$_dst_cp"
+  # Base toolkit prompts
+  for _pfile in "$_src_prompts"/rnex-*.md; do
+    [ -f "$_pfile" ] || continue
+    _pname="$(basename "$_pfile" .md)"
+    _desc="$(awk '
+      /^#/ { in_title=1; next }
+      in_title && /^[A-Za-z]/ { print; exit }
+    ' "$_pfile" 2>/dev/null)"
+    [ -n "$_desc" ] || _desc="Repo Nexus prompt for $_pname"
+
+    _dst_file="$_sp_dir/${_pname}${_ext}"
+    {
+      printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_pname" "$_desc"
+      cat "$_pfile"
+    } > "$_dst_file"
+  done
+
+  # Active plugins prompts & workflows
+  yaml_list_plugins | while read -r _pname; do
+    [ -n "$_pname" ] || continue
+    yaml_plugin_enabled "$_pname" || continue
+    case "$_pname" in
+      copilot|claude|gemini|cursor|windsurf) continue ;;
+    esac
+    _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+    [ -n "$_pdir" ] || continue
+
+    for _sub in prompts workflows; do
+      for _s_dir in "$_pdir/$_sub" "$NEXUS_DIR/.rnex/plugins/$_pname/$_sub"; do
+        [ -d "$_s_dir" ] || continue
+        for _pfile in "$_s_dir"/*.md; do
+          [ -f "$_pfile" ] || continue
+          _base="$(basename "$_pfile" .md)"
+          case "$_base" in
+            index|README) continue ;;
+          esac
+          _desc="$(awk '
+            /^#/ { in_title=1; next }
+            in_title && /^[A-Za-z]/ { print; exit }
+          ' "$_pfile" 2>/dev/null)"
+          [ -n "$_desc" ] || _desc="Prompt $_base from plugin $_pname"
+
+          _dst_file="$_sp_dir/${_base}${_ext}"
+          {
+            printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_base" "$_desc"
+            cat "$_pfile"
+          } > "$_dst_file"
+        done
+      done
+    done
+  done
+}
+
+sync_provider_skills() {
+  _sk_dir="$1"
+  mkdir -p "$_sk_dir"
+
+  # Base toolkit skills
+  for _pfile in "$_src_prompts"/rnex-*.md; do
+    [ -f "$_pfile" ] || continue
+    _pname="$(basename "$_pfile" .md)"
+    _desc="$(awk '
+      /^#/ { in_title=1; next }
+      in_title && /^[A-Za-z]/ { print; exit }
+    ' "$_pfile" 2>/dev/null)"
+    [ -n "$_desc" ] || _desc="Repo Nexus prompt for $_pname"
+
+    _dst_sk_dir="$_sk_dir/$_pname"
+    mkdir -p "$_dst_sk_dir"
+    _dst_sk="$_dst_sk_dir/SKILL.md"
+    {
+      printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_pname" "$_desc"
+      cat "$_pfile"
+    } > "$_dst_sk"
+  done
+
+  # Active plugins skills, prompts, & workflows
+  yaml_list_plugins | while read -r _pname; do
+    [ -n "$_pname" ] || continue
+    yaml_plugin_enabled "$_pname" || continue
+    case "$_pname" in
+      copilot|claude|gemini|cursor|windsurf) continue ;;
+    esac
+    _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
+    [ -n "$_pdir" ] || continue
+
+    # A. Dedicated skills in plugin
+    for _s_dir in "$_pdir/skills" "$NEXUS_DIR/.rnex/plugins/$_pname/skills"; do
+      [ -d "$_s_dir" ] || continue
+      for _s_entry in "$_s_dir"/*; do
+        if [ -d "$_s_entry" ] && [ -f "$_s_entry/SKILL.md" ]; then
+          _sname="$(basename "$_s_entry")"
+          mkdir -p "$_sk_dir/$_sname"
+          cp -f "$_s_entry/SKILL.md" "$_sk_dir/$_sname/SKILL.md"
+        elif [ -f "$_s_entry" ]; then
+          _sname="$(basename "$_s_entry" .md)"
+          mkdir -p "$_sk_dir/$_sname"
+          if grep -q '^---' "$_s_entry" 2>/dev/null; then
+            cp -f "$_s_entry" "$_sk_dir/$_sname/SKILL.md"
+          else
+            _desc="$(awk '
+              /^#/ { in_title=1; next }
+              in_title && /^[A-Za-z]/ { print; exit }
+            ' "$_s_entry" 2>/dev/null)"
+            [ -n "$_desc" ] || _desc="Skill $_sname from plugin $_pname"
+            {
+              printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_sname" "$_desc"
+              cat "$_s_entry"
+            } > "$_sk_dir/$_sname/SKILL.md"
+          fi
+        fi
+      done
     done
 
-    # Active plugins prompts & workflows
-    yaml_list_plugins | while read -r _pname; do
-      [ -n "$_pname" ] || continue
-      yaml_plugin_enabled "$_pname" || continue
-      [ "$_pname" != "copilot" ] || continue
-      _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
-      [ -n "$_pdir" ] || continue
-
-      for _sub in prompts workflows; do
-        for _s_dir in "$_pdir/$_sub" "$NEXUS_DIR/.rnex/plugins/$_pname/$_sub"; do
-          [ -d "$_s_dir" ] || continue
-          for _pfile in "$_s_dir"/*.md; do
-            [ -f "$_pfile" ] || continue
-            _base="$(basename "$_pfile" .md)"
-            case "$_base" in
-              index|README) continue ;;
-            esac
+    # B. Plugin prompts & workflows as skills if not already provided
+    for _sub in prompts workflows; do
+      for _s_dir in "$_pdir/$_sub" "$NEXUS_DIR/.rnex/plugins/$_pname/$_sub"; do
+        [ -d "$_s_dir" ] || continue
+        for _pfile in "$_s_dir"/*.md; do
+          [ -f "$_pfile" ] || continue
+          _base="$(basename "$_pfile" .md)"
+          case "$_base" in
+            index|README) continue ;;
+          esac
+          _dst_sk_dir="$_sk_dir/$_base"
+          if [ ! -f "$_dst_sk_dir/SKILL.md" ]; then
+            mkdir -p "$_dst_sk_dir"
             _desc="$(awk '
               /^#/ { in_title=1; next }
               in_title && /^[A-Za-z]/ { print; exit }
             ' "$_pfile" 2>/dev/null)"
-            [ -n "$_desc" ] || _desc="Prompt $_base from plugin $_pname"
-
-            _dst_cp="$_copilot_prompts/$_base.prompt.md"
+            [ -n "$_desc" ] || _desc="Skill $_base from plugin $_pname"
             {
               printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_base" "$_desc"
               cat "$_pfile"
-            } > "$_dst_cp"
-          done
+            } > "$_dst_sk_dir/SKILL.md"
+          fi
         done
       done
     done
+  done
+}
+
+sync_copilot() {
+  if copilot_prompts_enabled; then
+    sync_provider_prompts "$NEXUS_DIR/.github/prompts" ".prompt.md"
   else
     if [ -d "$NEXUS_DIR/.github/prompts" ]; then
       rm -f "$NEXUS_DIR/.github/prompts"/*.prompt.md 2>/dev/null || true
@@ -1524,107 +1665,22 @@ sync_prompts() {
     fi
   fi
 
-  # Copilot skills sync (.github/skills/<name>/SKILL.md)
   if copilot_skills_enabled; then
-    _copilot_skills="$NEXUS_DIR/.github/skills"
-    mkdir -p "$_copilot_skills"
-
-    # Base toolkit skills
-    for _pfile in "$_src_prompts"/rnex-*.md; do
-      [ -f "$_pfile" ] || continue
-      _pname="$(basename "$_pfile" .md)"
-      _desc="$(awk '
-        /^#/ { in_title=1; next }
-        in_title && /^[A-Za-z]/ { print; exit }
-      ' "$_pfile" 2>/dev/null)"
-      [ -n "$_desc" ] || _desc="Repo Nexus prompt for $_pname"
-
-      _dst_sk_dir="$_copilot_skills/$_pname"
-      mkdir -p "$_dst_sk_dir"
-      _dst_sk="$_dst_sk_dir/SKILL.md"
-      {
-        printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_pname" "$_desc"
-        cat "$_pfile"
-      } > "$_dst_sk"
-    done
-
-    # Active plugins skills, prompts, & workflows
-    yaml_list_plugins | while read -r _pname; do
-      [ -n "$_pname" ] || continue
-      yaml_plugin_enabled "$_pname" || continue
-      [ "$_pname" != "copilot" ] || continue
-      _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
-      [ -n "$_pdir" ] || continue
-
-      # A. Dedicated skills in plugin
-      for _s_dir in "$_pdir/skills" "$NEXUS_DIR/.rnex/plugins/$_pname/skills"; do
-        [ -d "$_s_dir" ] || continue
-        for _s_entry in "$_s_dir"/*; do
-          if [ -d "$_s_entry" ] && [ -f "$_s_entry/SKILL.md" ]; then
-            _sname="$(basename "$_s_entry")"
-            mkdir -p "$_copilot_skills/$_sname"
-            cp -f "$_s_entry/SKILL.md" "$_copilot_skills/$_sname/SKILL.md"
-          elif [ -f "$_s_entry" ]; then
-            _sname="$(basename "$_s_entry" .md)"
-            mkdir -p "$_copilot_skills/$_sname"
-            if grep -q '^---' "$_s_entry" 2>/dev/null; then
-              cp -f "$_s_entry" "$_copilot_skills/$_sname/SKILL.md"
-            else
-              _desc="$(awk '
-                /^#/ { in_title=1; next }
-                in_title && /^[A-Za-z]/ { print; exit }
-              ' "$_s_entry" 2>/dev/null)"
-              [ -n "$_desc" ] || _desc="Skill $_sname from plugin $_pname"
-              {
-                printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_sname" "$_desc"
-                cat "$_s_entry"
-              } > "$_copilot_skills/$_sname/SKILL.md"
-            fi
-          fi
-        done
-      done
-
-      # B. Plugin prompts & workflows as skills if not already provided
-      for _sub in prompts workflows; do
-        for _s_dir in "$_pdir/$_sub" "$NEXUS_DIR/.rnex/plugins/$_pname/$_sub"; do
-          [ -d "$_s_dir" ] || continue
-          for _pfile in "$_s_dir"/*.md; do
-            [ -f "$_pfile" ] || continue
-            _base="$(basename "$_pfile" .md)"
-            case "$_base" in
-              index|README) continue ;;
-            esac
-            _dst_sk_dir="$_copilot_skills/$_base"
-            if [ ! -f "$_dst_sk_dir/SKILL.md" ]; then
-              mkdir -p "$_dst_sk_dir"
-              _desc="$(awk '
-                /^#/ { in_title=1; next }
-                in_title && /^[A-Za-z]/ { print; exit }
-              ' "$_pfile" 2>/dev/null)"
-              [ -n "$_desc" ] || _desc="Skill $_base from plugin $_pname"
-              {
-                printf -- '---\nname: %s\ndescription: %s\n---\n\n' "$_base" "$_desc"
-                cat "$_pfile"
-              } > "$_dst_sk_dir/SKILL.md"
-            fi
-          done
-        done
-      done
-    done
+    sync_provider_skills "$NEXUS_DIR/.github/skills"
   else
     if [ -d "$NEXUS_DIR/.github/skills" ]; then
       rm -rf "$NEXUS_DIR/.github/skills" 2>/dev/null || true
     fi
   fi
 
-  # Copilot agents sync (.github/agents/*.agent.md)
   if copilot_agents_enabled; then
     _copilot_agents="$NEXUS_DIR/.github/agents"
-
     yaml_list_plugins | while read -r _pname; do
       [ -n "$_pname" ] || continue
       yaml_plugin_enabled "$_pname" || continue
-      [ "$_pname" != "copilot" ] || continue
+      case "$_pname" in
+        copilot|claude|gemini|cursor|windsurf) continue ;;
+      esac
       _pdir="$(find_plugin_dir "$_pname" 2>/dev/null || true)"
       [ -n "$_pdir" ] || continue
 
@@ -1648,10 +1704,9 @@ sync_prompts() {
               cat "$_afile"
             } > "$_copilot_agents/$_aname.agent.md"
           fi
-          # Also mirror to skills if skills enabled
           if copilot_skills_enabled; then
-            mkdir -p "$_copilot_skills/$_aname"
-            cp -f "$_copilot_agents/$_aname.agent.md" "$_copilot_skills/$_aname/SKILL.md"
+            mkdir -p "$NEXUS_DIR/.github/skills/$_aname"
+            cp -f "$_copilot_agents/$_aname.agent.md" "$NEXUS_DIR/.github/skills/$_aname/SKILL.md"
           fi
         done
       done
@@ -1662,8 +1717,133 @@ sync_prompts() {
     fi
   fi
 
-  # Copilot instructions sync (.github/copilot-instructions.md)
   sync_copilot_instructions
+}
+
+sync_claude() {
+  if claude_plugin_enabled; then
+    if claude_instructions_enabled; then
+      merge_rnex_instructions "$NEXUS_DIR/CLAUDE.md"
+    else
+      clean_rnex_instructions "$NEXUS_DIR/CLAUDE.md"
+    fi
+
+    if claude_prompts_enabled; then
+      sync_provider_prompts "$NEXUS_DIR/.claude/commands" ".md"
+      sync_provider_prompts "$NEXUS_DIR/.claude/prompts" ".md"
+    else
+      rm -rf "$NEXUS_DIR/.claude/commands" "$NEXUS_DIR/.claude/prompts" 2>/dev/null || true
+    fi
+
+    if claude_skills_enabled; then
+      sync_provider_skills "$NEXUS_DIR/.claude/skills"
+    else
+      rm -rf "$NEXUS_DIR/.claude/skills" 2>/dev/null || true
+    fi
+  else
+    clean_rnex_instructions "$NEXUS_DIR/CLAUDE.md"
+    rm -rf "$NEXUS_DIR/.claude/commands" "$NEXUS_DIR/.claude/prompts" "$NEXUS_DIR/.claude/skills" 2>/dev/null || true
+    rmdir "$NEXUS_DIR/.claude" 2>/dev/null || true
+  fi
+}
+
+sync_gemini() {
+  if gemini_plugin_enabled; then
+    if gemini_instructions_enabled; then
+      merge_rnex_instructions "$NEXUS_DIR/GEMINI.md"
+    else
+      clean_rnex_instructions "$NEXUS_DIR/GEMINI.md"
+    fi
+
+    if gemini_prompts_enabled; then
+      sync_provider_prompts "$NEXUS_DIR/.gemini/prompts" ".prompt.md"
+    else
+      rm -rf "$NEXUS_DIR/.gemini/prompts" 2>/dev/null || true
+    fi
+
+    if gemini_skills_enabled; then
+      sync_provider_skills "$NEXUS_DIR/.gemini/skills"
+    else
+      rm -rf "$NEXUS_DIR/.gemini/skills" 2>/dev/null || true
+    fi
+  else
+    clean_rnex_instructions "$NEXUS_DIR/GEMINI.md"
+    rm -rf "$NEXUS_DIR/.gemini/prompts" "$NEXUS_DIR/.gemini/skills" "$NEXUS_DIR/.gemini/rules" 2>/dev/null || true
+    rmdir "$NEXUS_DIR/.gemini" 2>/dev/null || true
+  fi
+}
+
+sync_cursor() {
+  if cursor_plugin_enabled; then
+    if cursor_instructions_enabled; then
+      merge_rnex_instructions "$NEXUS_DIR/.cursorrules"
+      mkdir -p "$NEXUS_DIR/.cursor/rules"
+      _c_body="$(mktemp)"
+      get_rnex_instructions > "$_c_body"
+      {
+        printf -- '---\ndescription: Repo Nexus Virtual Meta-Repo routing protocol\nglobs: *\nalwaysApply: true\n---\n\n%s\n' "$AI_MARKER_START"
+        cat "$_c_body"
+        printf '\n%s\n' "$AI_MARKER_END"
+      } > "$NEXUS_DIR/.cursor/rules/repo-nexus.mdc"
+      rm -f "$_c_body"
+    else
+      clean_rnex_instructions "$NEXUS_DIR/.cursorrules"
+      rm -f "$NEXUS_DIR/.cursor/rules/repo-nexus.mdc" 2>/dev/null || true
+      rmdir "$NEXUS_DIR/.cursor/rules" 2>/dev/null || true
+      rmdir "$NEXUS_DIR/.cursor" 2>/dev/null || true
+    fi
+
+    if cursor_prompts_enabled; then
+      sync_provider_prompts "$NEXUS_DIR/.cursor/prompts" ".md"
+    else
+      rm -rf "$NEXUS_DIR/.cursor/prompts" 2>/dev/null || true
+    fi
+
+    if cursor_skills_enabled; then
+      sync_provider_skills "$NEXUS_DIR/.cursor/skills"
+    else
+      rm -rf "$NEXUS_DIR/.cursor/skills" 2>/dev/null || true
+    fi
+  else
+    clean_rnex_instructions "$NEXUS_DIR/.cursorrules"
+    rm -rf "$NEXUS_DIR/.cursor/prompts" "$NEXUS_DIR/.cursor/skills" "$NEXUS_DIR/.cursor/rules/repo-nexus.mdc" 2>/dev/null || true
+    rmdir "$NEXUS_DIR/.cursor/rules" 2>/dev/null || true
+    rmdir "$NEXUS_DIR/.cursor" 2>/dev/null || true
+  fi
+}
+
+sync_windsurf() {
+  if windsurf_plugin_enabled; then
+    if windsurf_instructions_enabled; then
+      merge_rnex_instructions "$NEXUS_DIR/.windsurfrules"
+    else
+      clean_rnex_instructions "$NEXUS_DIR/.windsurfrules"
+    fi
+
+    if windsurf_prompts_enabled; then
+      sync_provider_prompts "$NEXUS_DIR/.windsurf/prompts" ".md"
+    else
+      rm -rf "$NEXUS_DIR/.windsurf/prompts" 2>/dev/null || true
+    fi
+
+    if windsurf_skills_enabled; then
+      sync_provider_skills "$NEXUS_DIR/.windsurf/skills"
+    else
+      rm -rf "$NEXUS_DIR/.windsurf/skills" 2>/dev/null || true
+    fi
+  else
+    clean_rnex_instructions "$NEXUS_DIR/.windsurfrules"
+    rm -rf "$NEXUS_DIR/.windsurf/prompts" "$NEXUS_DIR/.windsurf/skills" 2>/dev/null || true
+    rmdir "$NEXUS_DIR/.windsurf" 2>/dev/null || true
+  fi
+}
+
+sync_ai_providers() {
+  sync_copilot
+  sync_claude
+  sync_gemini
+  sync_cursor
+  sync_windsurf
 }
 
 upgrade_workspace_config() {
@@ -1699,24 +1879,21 @@ upgrade_workspace_config() {
     ' "$_f" > "$_tmp" && mv "$_tmp" "$_f"
   fi
 
-  # 2. Add ai_instructions if missing
-  if ! grep -q '^[ ]*\(ai_instructions\|ai_instructions_file\):' "$_f" 2>/dev/null; then
-    awk '
-      BEGIN { inserted=0 }
-      /^[ ]*(plugins|repos):/ && !inserted {
-        print "# Main AI instructions routing file (default: AGENTS.md; e.g. CLAUDE.md, GEMINI.md)"
-        print "ai_instructions: AGENTS.md"
-        print ""
-        inserted=1
-      }
-      { print }
-      END {
-        if (!inserted) {
-          print ""
-          print "ai_instructions: AGENTS.md"
-        }
-      }
-    ' "$_f" > "$_tmp" && mv "$_tmp" "$_f"
+  # 2. Check for legacy ai_instructions: if set, migrate to provider plugin and remove
+  if grep -q '^[ ]*\(ai_instructions\|ai_instructions_file\):' "$_f" 2>/dev/null; then
+    _old_aif="$(awk '/^[ ]*(ai_instructions|ai_instructions_file):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_f" | tr -d " \t\r\n'\"")"
+    case "$_old_aif" in
+      CLAUDE.md|claude)
+        yaml_enable_plugin "claude" "$_f"
+        ;;
+      GEMINI.md|gemini)
+        yaml_enable_plugin "gemini" "$_f"
+        ;;
+      .cursorrules|cursor)
+        yaml_enable_plugin "cursor" "$_f"
+        ;;
+    esac
+    awk '!/^[ ]*(ai_instructions|ai_instructions_file):/' "$_f" > "$_tmp" && mv "$_tmp" "$_f"
   fi
 
   # 3. Add code_workspace if missing
@@ -1798,6 +1975,7 @@ HOOK_EOF
     return 0
   fi
 
+  mkdir -p "$(dirname "$_dst")"
   mv "$_sub_tmp" "$_dst"
 }
 
@@ -1993,12 +2171,15 @@ cmd_hooks() {
 
 cmd_init() {
   _non_interactive=0
-  _target_dir=""
-  _cli_ai_instructions=""
+  _init_dir=""
   _cli_code_workspace=""
   _cli_hooks=""
   _cli_no_hooks=0
   _cli_copilot=""
+  _cli_claude=""
+  _cli_gemini=""
+  _cli_cursor=""
+  _cli_windsurf=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -2007,9 +2188,17 @@ cmd_init() {
       --no-hooks) _cli_no_hooks=1; _cli_hooks="false" ;;
       --copilot) _cli_copilot="true" ;;
       --no-copilot) _cli_copilot="false" ;;
+      --claude) _cli_claude="true" ;;
+      --no-claude) _cli_claude="false" ;;
+      --gemini) _cli_gemini="true" ;;
+      --no-gemini) _cli_gemini="false" ;;
+      --cursor) _cli_cursor="true" ;;
+      --no-cursor) _cli_cursor="false" ;;
+      --windsurf) _cli_windsurf="true" ;;
+      --no-windsurf) _cli_windsurf="false" ;;
       --ai|--instructions|--ai-instructions)
         shift
-        _cli_ai_instructions="$1"
+        # Legacy flag ignored in favor of plugins
         ;;
       --code-workspace|--vscode)
         _cli_code_workspace="true"
@@ -2028,8 +2217,8 @@ cmd_init() {
         fi
         ;;
       *)
-        if [ -z "$_target_dir" ]; then
-          _target_dir="$1"
+        if [ -z "$_init_dir" ]; then
+          _init_dir="$1"
         fi
         ;;
     esac
@@ -2038,16 +2227,16 @@ cmd_init() {
 
   if [ -n "$CUSTOM_CONFIG" ]; then
     _target_yaml="$(resolve_path "$CUSTOM_CONFIG")"
-    _target_dir="$(dirname "$_target_yaml")"
+    _init_dir="$(dirname "$_target_yaml")"
   else
-    _target_dir="${_target_dir:-$PWD}"
-    _target_dir="$(resolve_path "$_target_dir")"
-    _target_yaml="$_target_dir/$RNEX_CONFIG_FILE"
+    _init_dir="${_init_dir:-$PWD}"
+    _init_dir="$(resolve_path "$_init_dir")"
+    _target_yaml="$_init_dir/$RNEX_CONFIG_FILE"
   fi
-  mkdir -p "$_target_dir"
+  mkdir -p "$_init_dir"
 
   _is_git_ws=0
-  if git -C "$_target_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if git -C "$_init_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     _is_git_ws=1
   fi
 
@@ -2078,7 +2267,19 @@ cmd_init() {
   else
     _init_plugins=""
     if [ "$_cli_copilot" = "true" ]; then
-      _init_plugins="  copilot:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n"
+      _init_plugins="${_init_plugins}  copilot:\n    prompts: true\n    skills: true\n    instructions: true\n    agents: true\n"
+    fi
+    if [ "$_cli_claude" = "true" ]; then
+      _init_plugins="${_init_plugins}  claude:\n    instructions: true\n    prompts: true\n    skills: true\n"
+    fi
+    if [ "$_cli_gemini" = "true" ]; then
+      _init_plugins="${_init_plugins}  gemini:\n    instructions: true\n    prompts: true\n    skills: true\n"
+    fi
+    if [ "$_cli_cursor" = "true" ]; then
+      _init_plugins="${_init_plugins}  cursor:\n    instructions: true\n    prompts: true\n    skills: true\n"
+    fi
+    if [ "$_cli_windsurf" = "true" ]; then
+      _init_plugins="${_init_plugins}  windsurf:\n    instructions: true\n    prompts: true\n    skills: true\n"
     fi
 
     cat > "$_target_yaml" <<YAML_EOF
@@ -2089,9 +2290,6 @@ version: $RNEX_VERSION
 
 # Directory for member repository clones
 repos_dir: ./repos
-
-# Main AI instructions routing file (default: AGENTS.md; e.g. CLAUDE.md, GEMINI.md)
-ai_instructions: ${_cli_ai_instructions:-AGENTS.md}
 
 # VS Code / Cursor multi-root workspace file (default: false; e.g. true or workspace.code-workspace)
 code_workspace: ${_cli_code_workspace:-false}
@@ -2109,38 +2307,31 @@ YAML_EOF
     log_ok "Created $RNEX_CONFIG_FILE"
   fi
 
-  # ---- 2. Merge routing instructions into main AI instructions file ---------
-  _target_aif="$_cli_ai_instructions"
-  if [ -z "$_target_aif" ] && [ -f "$_target_dir/$RNEX_LOCAL_CONFIG_FILE" ]; then
-    _target_aif="$(awk '/^(ai_instructions|ai_instructions_file):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_target_dir/$RNEX_LOCAL_CONFIG_FILE")"
+  # ---- 2. Merge routing instructions into AI instructions files ------------
+  if [ "$_cli_claude" != "true" ] && [ "$_cli_gemini" != "true" ] && [ "$_cli_cursor" != "true" ] && [ "$_cli_windsurf" != "true" ]; then
+    merge_rnex_instructions "$_init_dir/AGENTS.md"
   fi
-  if [ -z "$_target_aif" ] && [ -f "$_target_yaml" ]; then
-    _target_aif="$(awk '/^(ai_instructions|ai_instructions_file):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_target_yaml")"
-  fi
-  _target_aif="$(echo "$_target_aif" | tr -d " \t\r\n'\"")"
-  _target_aif="${_target_aif:-AGENTS.md}"
-
-  _target_agents="$_target_dir/$_target_aif"
-  merge_rnex_instructions "$_target_agents"
-  [ -f "$_target_dir/AGENTS.md" ] && [ "$_target_aif" != "AGENTS.md" ] && merge_rnex_instructions "$_target_dir/AGENTS.md"
-  [ -f "$_target_dir/CLAUDE.md" ] && [ "$_target_aif" != "CLAUDE.md" ] && merge_rnex_instructions "$_target_dir/CLAUDE.md"
-  [ -f "$_target_dir/.cursorrules" ] && [ "$_target_aif" != ".cursorrules" ] && merge_rnex_instructions "$_target_dir/.cursorrules"
+  [ -f "$_init_dir/AGENTS.md" ] && merge_rnex_instructions "$_init_dir/AGENTS.md"
+  [ -f "$_init_dir/CLAUDE.md" ] && merge_rnex_instructions "$_init_dir/CLAUDE.md"
+  [ -f "$_init_dir/GEMINI.md" ] && merge_rnex_instructions "$_init_dir/GEMINI.md"
+  [ -f "$_init_dir/.cursorrules" ] && merge_rnex_instructions "$_init_dir/.cursorrules"
+  [ -f "$_init_dir/.windsurfrules" ] && merge_rnex_instructions "$_init_dir/.windsurfrules"
 
   # ---- 3. Create repos directory with .gitkeep -----------------------------
-  _repos_dir="$_target_dir/repos"
+  _repos_dir="$_init_dir/repos"
   mkdir -p "$_repos_dir"
   [ -f "$_repos_dir/.gitkeep" ] || touch "$_repos_dir/.gitkeep"
 
   # ---- 4. Create internal .rnex directory and sync prompts ----------------
-  mkdir -p "$_target_dir/.rnex"
-  mkdir -p "$_target_dir/.rnex/plugins"
-  mkdir -p "$_target_dir/.rnex/prompts"
+  mkdir -p "$_init_dir/.rnex"
+  mkdir -p "$_init_dir/.rnex/plugins"
+  mkdir -p "$_init_dir/.rnex/prompts"
   _orig_nexus="$NEXUS_DIR"
   _orig_yaml="$WORKSPACE_YAML"
   _orig_local_yaml="$WORKSPACE_LOCAL_YAML"
-  NEXUS_DIR="$_target_dir"
+  NEXUS_DIR="$_init_dir"
   WORKSPACE_YAML="$_target_yaml"
-  WORKSPACE_LOCAL_YAML="$_target_dir/$RNEX_LOCAL_CONFIG_FILE"
+  WORKSPACE_LOCAL_YAML="$_init_dir/$RNEX_LOCAL_CONFIG_FILE"
   sync_plugins
   sync_prompts
   WORKSPACE_LOCAL_YAML="$_orig_local_yaml"
@@ -2148,12 +2339,12 @@ YAML_EOF
   NEXUS_DIR="$_orig_nexus"
 
   # ---- 5. Ensure repos/ and local configs are gitignored ---------
-  reconcile_gitignore "$_target_dir"
+  reconcile_gitignore "$_init_dir"
 
   # ---- 6. Generate VS Code / Cursor workspace if configured ----------------
   _target_cw="$_cli_code_workspace"
-  if [ -z "$_target_cw" ] && [ -f "$_target_dir/$RNEX_LOCAL_CONFIG_FILE" ]; then
-    _target_cw="$(awk '/^(code_workspace|vscode_workspace):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_target_dir/$RNEX_LOCAL_CONFIG_FILE")"
+  if [ -z "$_target_cw" ] && [ -f "$_init_dir/$RNEX_LOCAL_CONFIG_FILE" ]; then
+    _target_cw="$(awk '/^(code_workspace|vscode_workspace):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_init_dir/$RNEX_LOCAL_CONFIG_FILE")"
   fi
   if [ -z "$_target_cw" ] && [ -f "$_target_yaml" ]; then
     _target_cw="$(awk '/^(code_workspace|vscode_workspace):/ { sub(/^[a-zA-Z0-9_]+:[ ]*/, ""); sub(/[ ]*#.*/, ""); val=$0 } END { if (val) print val }' "$_target_yaml")"
@@ -2161,7 +2352,7 @@ YAML_EOF
   _target_cw="$(echo "$_target_cw" | tr -d " \t\r\n'\"")"
   case "$_target_cw" in
     true|yes|1)
-      _cw_name="$(basename "$_target_dir").code-workspace"
+      _cw_name="$(basename "$_init_dir").code-workspace"
       ;;
     false|no|0|none|"")
       _cw_name=""
@@ -2179,9 +2370,9 @@ YAML_EOF
     _orig_repos="$REPOS_DIR"
     _orig_cw="$CODE_WORKSPACE_FILE"
     CODE_WORKSPACE_FILE="$_cw_name"
-    NEXUS_DIR="$_target_dir"
+    NEXUS_DIR="$_init_dir"
     _repos_rel="repos"
-    REPOS_DIR="$_target_dir/$_repos_rel"
+    REPOS_DIR="$_init_dir/$_repos_rel"
     sync_code_workspace
     NEXUS_DIR="$_orig_nexus"
     REPOS_DIR="$_orig_repos"
@@ -2191,7 +2382,7 @@ YAML_EOF
   # ---- 7. Setup automated Git hooks if inside a Git repository ------------
   if [ "$_is_git_ws" -eq 1 ]; then
     if [ "$_init_git_hooks" = "true" ]; then
-      cmd_hooks_install_dir "$_target_dir"
+      cmd_hooks_install_dir "$_init_dir"
     else
       log_dim "Skipping Git hooks setup (run 'rnex hooks install' later to enable)"
     fi
@@ -2199,8 +2390,8 @@ YAML_EOF
 
   if [ "$_config_created" -eq 1 ]; then
     printf '\n'
-    log_ok "Initialized Repo Nexus workspace at ${_BOLD}$_target_dir${_NC}"
-    _created_items="$RNEX_CONFIG_FILE, $_target_aif, .rnex/, and repos/"
+    log_ok "Initialized Repo Nexus workspace at ${_BOLD}$_init_dir${_NC}"
+    _created_items="$RNEX_CONFIG_FILE, .rnex/, and repos/"
     [ -n "$_cw_name" ] && _created_items="$_created_items (and $_cw_name)"
     log_dim "Created $_created_items"
     printf '\n'
@@ -2498,7 +2689,6 @@ cmd_status() {
     printf '  %b○%b Local Config:  %s %b(not found — using repo defaults)%b\n' "$_DIM" "$_NC" "$WORKSPACE_LOCAL_YAML" "$_DIM" "$_NC"
   fi
   printf '  %b●%b Repos Dir:     %s\n' "$_DIM" "$_NC" "$REPOS_DIR"
-  printf '  %b●%b AI File:       %s\n' "$_DIM" "$_NC" "$AI_INSTRUCTIONS_FILE"
   if [ -n "$CODE_WORKSPACE_FILE" ]; then
     printf '  %b●%b Workspace:   %s\n' "$_DIM" "$_NC" "$CODE_WORKSPACE_FILE"
   fi
@@ -2567,17 +2757,38 @@ cmd_status() {
   printf '\n'
 
   printf '%bWorkspace AI Context (Routing):%b\n' "$_BOLD" "$_NC"
-  _main_ai="${AI_INSTRUCTIONS_FILE:-AGENTS.md}"
-  if [ -e "$NEXUS_DIR/$_main_ai" ]; then
-    printf '  %b✓%b %s %b(main instructions)%b\n' "$_G" "$_NC" "$_main_ai" "$_DIM" "$_NC"
-  else
-    printf '  %b✗%b %s %b(main instructions — MISSING; run "rnex fix" to create)%b\n' "$_R" "$_NC" "$_main_ai" "$_R" "$_NC"
+  _has_any_ai=0
+  if [ -f "$NEXUS_DIR/AGENTS.md" ]; then
+    printf '  %b✓%b %s %b(standard instructions)%b\n' "$_G" "$_NC" "AGENTS.md" "$_DIM" "$_NC"
+    _has_any_ai=1
   fi
-  for _aux_ai in "AGENTS.md" "CLAUDE.md" "GEMINI.md" ".cursorrules"; do
-    if [ "$_aux_ai" != "$_main_ai" ] && [ -f "$NEXUS_DIR/$_aux_ai" ]; then
-      printf '  %b✓%b %s\n' "$_G" "$_NC" "$_aux_ai"
-    fi
-  done
+  if [ -f "$NEXUS_DIR/CLAUDE.md" ]; then
+    printf '  %b✓%b %s %b(Claude instructions)%b\n' "$_G" "$_NC" "CLAUDE.md" "$_DIM" "$_NC"
+    _has_any_ai=1
+  fi
+  if [ -f "$NEXUS_DIR/GEMINI.md" ]; then
+    printf '  %b✓%b %s %b(Gemini instructions)%b\n' "$_G" "$_NC" "GEMINI.md" "$_DIM" "$_NC"
+    _has_any_ai=1
+  fi
+  if [ -f "$NEXUS_DIR/.cursorrules" ]; then
+    printf '  %b✓%b %s %b(Cursor instructions)%b\n' "$_G" "$_NC" ".cursorrules" "$_DIM" "$_NC"
+    _has_any_ai=1
+  fi
+  if [ -f "$NEXUS_DIR/.cursor/rules/repo-nexus.mdc" ]; then
+    printf '  %b✓%b %s %b(Cursor MDC rule)%b\n' "$_G" "$_NC" ".cursor/rules/repo-nexus.mdc" "$_DIM" "$_NC"
+    _has_any_ai=1
+  fi
+  if [ -f "$NEXUS_DIR/.windsurfrules" ]; then
+    printf '  %b✓%b %s %b(Windsurf instructions)%b\n' "$_G" "$_NC" ".windsurfrules" "$_DIM" "$_NC"
+    _has_any_ai=1
+  fi
+  if [ -f "$NEXUS_DIR/.github/copilot-instructions.md" ]; then
+    printf '  %b✓%b %s %b(Copilot instructions)%b\n' "$_G" "$_NC" ".github/copilot-instructions.md" "$_DIM" "$_NC"
+    _has_any_ai=1
+  fi
+  if [ "$_has_any_ai" -eq 0 ]; then
+    printf '  %b✗%b %s %b(standard instructions — MISSING; run "rnex fix" to create)%b\n' "$_R" "$_NC" "AGENTS.md" "$_R" "$_NC"
+  fi
   if [ -n "$CODE_WORKSPACE_FILE" ]; then
     if [ -f "$NEXUS_DIR/$CODE_WORKSPACE_FILE" ]; then
       printf '  %b✓%b %s %b(VS Code / Cursor workspace)%b\n' "$_G" "$_NC" "$CODE_WORKSPACE_FILE" "$_DIM" "$_NC"
@@ -2605,8 +2816,29 @@ cmd_status() {
   if [ -d "$NEXUS_DIR/.github/agents" ]; then
     printf '  %b✓%b %s %b(Copilot agents)%b\n' "$_G" "$_NC" ".github/agents/" "$_DIM" "$_NC"
   fi
-  if [ -f "$NEXUS_DIR/.github/copilot-instructions.md" ]; then
-    printf '  %b✓%b %s %b(Copilot instructions)%b\n' "$_G" "$_NC" ".github/copilot-instructions.md" "$_DIM" "$_NC"
+  if [ -d "$NEXUS_DIR/.claude/commands" ] || [ -d "$NEXUS_DIR/.claude/prompts" ]; then
+    printf '  %b✓%b %s %b(Claude prompts/commands)%b\n' "$_G" "$_NC" ".claude/commands/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.claude/skills" ]; then
+    printf '  %b✓%b %s %b(Claude skills)%b\n' "$_G" "$_NC" ".claude/skills/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.gemini/prompts" ]; then
+    printf '  %b✓%b %s %b(Gemini prompts)%b\n' "$_G" "$_NC" ".gemini/prompts/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.gemini/skills" ]; then
+    printf '  %b✓%b %s %b(Gemini skills)%b\n' "$_G" "$_NC" ".gemini/skills/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.cursor/prompts" ]; then
+    printf '  %b✓%b %s %b(Cursor prompts)%b\n' "$_G" "$_NC" ".cursor/prompts/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.cursor/skills" ]; then
+    printf '  %b✓%b %s %b(Cursor skills)%b\n' "$_G" "$_NC" ".cursor/skills/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.windsurf/prompts" ]; then
+    printf '  %b✓%b %s %b(Windsurf prompts)%b\n' "$_G" "$_NC" ".windsurf/prompts/" "$_DIM" "$_NC"
+  fi
+  if [ -d "$NEXUS_DIR/.windsurf/skills" ]; then
+    printf '  %b✓%b %s %b(Windsurf skills)%b\n' "$_G" "$_NC" ".windsurf/skills/" "$_DIM" "$_NC"
   fi
   printf '\n'
 
@@ -2626,13 +2858,21 @@ cmd_status() {
         else
           printf '  %b●%b %-18s %b(v%s)%b %s\n' "$_G" "$_NC" "$_pname" "$_DIM" "${_ver:-0.1.0}" "$_NC" "${_desc:+- $_desc}"
           printf '    %bScoped directory: .rnex/plugins/%s%b\n' "$_DIM" "$_pname" "$_NC"
-          if [ "$_pname" = "copilot" ]; then
-            printf '    %b↳ Options: prompts=%s, skills=%s, instructions=%s, agents=%s%b\n' "$_DIM" \
-              "$(copilot_prompts_enabled && echo "true" || echo "false")" \
-              "$(copilot_skills_enabled && echo "true" || echo "false")" \
-              "$(copilot_instructions_enabled && echo "true" || echo "false")" \
-              "$(copilot_agents_enabled && echo "true" || echo "false")" "$_NC"
-          fi
+          case "$_pname" in
+            copilot)
+              printf '    %b↳ Options: prompts=%s, skills=%s, instructions=%s, agents=%s%b\n' "$_DIM" \
+                "$(copilot_prompts_enabled && echo "true" || echo "false")" \
+                "$(copilot_skills_enabled && echo "true" || echo "false")" \
+                "$(copilot_instructions_enabled && echo "true" || echo "false")" \
+                "$(copilot_agents_enabled && echo "true" || echo "false")" "$_NC"
+              ;;
+            claude|gemini|cursor|windsurf)
+              printf '    %b↳ Options: instructions=%s, prompts=%s, skills=%s%b\n' "$_DIM" \
+                "$(provider_option_enabled "$_pname" "instructions" && echo "true" || echo "false")" \
+                "$(provider_option_enabled "$_pname" "prompts" && echo "true" || echo "false")" \
+                "$(provider_option_enabled "$_pname" "skills" && echo "true" || echo "false")" "$_NC"
+              ;;
+          esac
         fi
       else
         printf '  %b✗%b %-18s %bMISSING%b\n' "$_R" "$_NC" "$_pname" "$_R" "$_NC"
@@ -2696,47 +2936,32 @@ cmd_fix() {
 
   [ "$_fix_quiet" -eq 0 ] && log_info "Reconciling Repo Nexus workspace at $NEXUS_DIR..."
 
-  # Version detection & non-destructive upgrade
+  # Version detection & non-destructive upgrade (integrated as single process)
   _vc_res=0
   version_cmp "$WORKSPACE_CONFIG_VERSION" "$RNEX_VERSION" || _vc_res=$?
   if [ "$_vc_res" -eq 2 ]; then
-    _do_upgrade=0
-    if [ "$_fix_auto_yes" -eq 1 ] || [ "$_fix_upgrade_explicit" -eq 1 ]; then
-      _do_upgrade=1
-    elif [ -t 0 ]; then
-      printf '\n'
-      log_info "Workspace configuration is at v${WORKSPACE_CONFIG_VERSION:-<unversioned>} (current CLI is v$RNEX_VERSION)."
-      printf '%bUpgrade workspace configuration and routing instructions to v%s? [y/N]: %b' "$_BOLD" "$RNEX_VERSION" "$_NC"
-      read -r _upgrade_ans
-      case "$_upgrade_ans" in
-        y*|Y*) _do_upgrade=1 ;;
-        *) log_info "Skipping workspace configuration upgrade." ;;
-      esac
-    else
-      log_warn "Workspace configuration is at v${WORKSPACE_CONFIG_VERSION:-<unversioned>} (current CLI is v$RNEX_VERSION)."
-      log_dim "To upgrade configuration, run: rnex update (or rnex fix -y)"
-    fi
-
-    if [ "$_do_upgrade" -eq 1 ]; then
-      upgrade_workspace_config "$WORKSPACE_YAML" "$RNEX_VERSION"
-      _load_workspace_version
-      _load_repos_dir
-      _load_ai_instructions_file
-      _load_code_workspace
-      _load_git_hooks
-      _load_copilot
-      [ "$_fix_quiet" -eq 0 ] && log_ok "Upgraded workspace configuration and routing instructions to v$RNEX_VERSION"
-    fi
+    upgrade_workspace_config "$WORKSPACE_YAML" "$RNEX_VERSION"
+    _load_workspace_version
+    _load_repos_dir
+    _load_code_workspace
+    _load_git_hooks
+    _load_copilot
+    [ "$_fix_quiet" -eq 0 ] && log_ok "Upgraded workspace configuration and routing instructions to v$RNEX_VERSION"
   fi
 
   # 1. Ensure .gitignore ignores repos/, .rnex/, and local configs, and strips legacy counters
   reconcile_gitignore "$NEXUS_DIR"
 
-  # 2. Reconcile instructions in main AI instructions file (and optional AI assistant files if present)
-  merge_rnex_instructions "$NEXUS_DIR/$AI_INSTRUCTIONS_FILE"
-  [ -f "$NEXUS_DIR/AGENTS.md" ] && [ "$AI_INSTRUCTIONS_FILE" != "AGENTS.md" ] && merge_rnex_instructions "$NEXUS_DIR/AGENTS.md"
-  [ -f "$NEXUS_DIR/CLAUDE.md" ] && [ "$AI_INSTRUCTIONS_FILE" != "CLAUDE.md" ] && merge_rnex_instructions "$NEXUS_DIR/CLAUDE.md"
-  [ -f "$NEXUS_DIR/.cursorrules" ] && [ "$AI_INSTRUCTIONS_FILE" != ".cursorrules" ] && merge_rnex_instructions "$NEXUS_DIR/.cursorrules"
+  # 2. Reconcile instructions in workspace AI files
+  if [ -f "$NEXUS_DIR/AGENTS.md" ]; then
+    merge_rnex_instructions "$NEXUS_DIR/AGENTS.md"
+  elif ! has_ai_provider_plugin_enabled; then
+    merge_rnex_instructions "$NEXUS_DIR/AGENTS.md"
+  fi
+  [ -f "$NEXUS_DIR/CLAUDE.md" ] && ! claude_plugin_enabled && merge_rnex_instructions "$NEXUS_DIR/CLAUDE.md"
+  [ -f "$NEXUS_DIR/GEMINI.md" ] && ! gemini_plugin_enabled && merge_rnex_instructions "$NEXUS_DIR/GEMINI.md"
+  [ -f "$NEXUS_DIR/.cursorrules" ] && ! cursor_plugin_enabled && merge_rnex_instructions "$NEXUS_DIR/.cursorrules"
+  [ -f "$NEXUS_DIR/.windsurfrules" ] && ! windsurf_plugin_enabled && merge_rnex_instructions "$NEXUS_DIR/.windsurfrules"
 
   # 3. Sync standard prompts to .rnex/prompts/
   sync_prompts
@@ -2808,30 +3033,14 @@ cmd_sync() {
 
 cmd_update() {
   require_workspace
-  _yes=0
-  for _a in "$@"; do
-    case "$_a" in
-      -y|--yes) _yes=1 ;;
-    esac
-  done
-
   _cmp=0
   version_cmp "$WORKSPACE_CONFIG_VERSION" "$RNEX_VERSION" || _cmp=$?
   if [ "$_cmp" -eq 0 ]; then
     log_ok "Workspace configuration and routing instructions are already up to date (v$RNEX_VERSION)"
-    cmd_fix "$@"
-    return 0
   elif [ "$_cmp" -eq 1 ]; then
     log_info "Workspace configuration version (v$WORKSPACE_CONFIG_VERSION) is newer than current CLI (v$RNEX_VERSION)"
-    cmd_fix "$@"
-    return 0
   fi
-
-  if [ "$_yes" -eq 1 ]; then
-    cmd_fix --upgrade -y
-  else
-    cmd_fix --upgrade
-  fi
+  cmd_fix "$@"
 }
 
 cmd_upgrade() {
@@ -2903,6 +3112,26 @@ cmd_plugin_info() {
     printf '  - skills: true|false  (mirror skills to .github/skills/<name>/SKILL.md; current: %s)\n' "$(copilot_skills_enabled && echo "true" || echo "false")"
     printf '  - instructions: true|false  (mirror instructions to .github/copilot-instructions.md; current: %s)\n' "$(copilot_instructions_enabled && echo "true" || echo "false")"
     printf '  - agents: true|false  (mirror agents to .github/agents/*.agent.md; current: %s)\n' "$(copilot_agents_enabled && echo "true" || echo "false")"
+  elif [ "$_name" = "claude" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - instructions: true|false  (mirror instructions to CLAUDE.md; current: %s)\n' "$(claude_instructions_enabled && echo "true" || echo "false")"
+    printf '  - prompts: true|false  (mirror prompts to .claude/commands/ and .claude/prompts/; current: %s)\n' "$(claude_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .claude/skills/<name>/SKILL.md; current: %s)\n' "$(claude_skills_enabled && echo "true" || echo "false")"
+  elif [ "$_name" = "gemini" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - instructions: true|false  (mirror instructions to GEMINI.md; current: %s)\n' "$(gemini_instructions_enabled && echo "true" || echo "false")"
+    printf '  - prompts: true|false  (mirror prompts to .gemini/prompts/; current: %s)\n' "$(gemini_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .gemini/skills/<name>/SKILL.md; current: %s)\n' "$(gemini_skills_enabled && echo "true" || echo "false")"
+  elif [ "$_name" = "cursor" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - instructions: true|false  (mirror instructions to .cursorrules & .cursor/rules/; current: %s)\n' "$(cursor_instructions_enabled && echo "true" || echo "false")"
+    printf '  - prompts: true|false  (mirror prompts to .cursor/prompts/; current: %s)\n' "$(cursor_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .cursor/skills/<name>/SKILL.md; current: %s)\n' "$(cursor_skills_enabled && echo "true" || echo "false")"
+  elif [ "$_name" = "windsurf" ]; then
+    printf '\n%bConfigurable Options (in rnex.yaml or .local.rnex.yaml):%b\n' "$_BOLD" "$_NC"
+    printf '  - instructions: true|false  (mirror instructions to .windsurfrules; current: %s)\n' "$(windsurf_instructions_enabled && echo "true" || echo "false")"
+    printf '  - prompts: true|false  (mirror prompts to .windsurf/prompts/; current: %s)\n' "$(windsurf_prompts_enabled && echo "true" || echo "false")"
+    printf '  - skills: true|false  (mirror skills to .windsurf/skills/<name>/SKILL.md; current: %s)\n' "$(windsurf_skills_enabled && echo "true" || echo "false")"
   fi
 
   printf '\n%bScoped Directory:%b .rnex/plugins/%s\n' "$_BOLD" "$_NC" "$_name"
@@ -3002,6 +3231,9 @@ cmd_plugin_disable() {
   fi
 
   sync_prompts
+  if ! has_ai_provider_plugin_enabled && [ ! -f "$NEXUS_DIR/AGENTS.md" ]; then
+    merge_rnex_instructions "$NEXUS_DIR/AGENTS.md"
+  fi
   log_ok "Plugin '$_name' disabled from workspace"
 }
 
@@ -3224,11 +3456,12 @@ cmd_help() {
     -v, --version           Show version
 
   WORKSPACE & SYSTEM SETUP
-    init [-y] [--ai <file>] [--code-workspace [file]] [--hooks|--no-hooks] [--copilot|--no-copilot] [dir]
-                            Initialize a new Repo Nexus workspace (default AI file: AGENTS.md)
+    init [-y] [--code-workspace [file]] [--hooks|--no-hooks] [--copilot] [--claude] [--gemini] [--cursor] [--windsurf] [dir]
+                            Initialize a new Repo Nexus workspace (default: AGENTS.md)
     install [dir]           Install rnex & repo-nexus globally into ~/.local/bin (or custom dir)
-    fix [-y] [--quiet]      Reconcile workspace, plugins, prompts & member .rnex/ (alias: sync)
-    update [-y]             Upgrade workspace configuration and routing instructions (alias: upgrade)
+    fix [-y] [--quiet]      Reconcile workspace, upgrade configuration & routing, sync plugins & repos (aliases: sync, update, upgrade)
+    update [-y]             Alias for fix (upgrades configuration and reconciles workspace)
+    upgrade [-y]            Alias for fix
     hooks <install|uninstall|status> [--local]
                             Manage automated Git hooks (--local writes to .local.rnex.yaml)
     completion <shell>      Generate shell completion script (bash, zsh, fish)

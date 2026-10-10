@@ -32,19 +32,6 @@ version: 0.5.0
 repos_dir: ./repos
 
 # ------------------------------------------------------------------------------
-# ai_instructions — Main AI instructions routing file
-# ------------------------------------------------------------------------------
-# Main instructions file created and managed by Repo Nexus.
-# Default: AGENTS.md (recognized by modern AI coding assistants)
-#
-# Examples:
-#   ai_instructions: AGENTS.md     # default standard
-#   ai_instructions: CLAUDE.md     # for Anthropic Claude Code CLI
-#   ai_instructions: GEMINI.md     # for Google Gemini / Antigravity CLI
-#
-ai_instructions: AGENTS.md
-
-# ------------------------------------------------------------------------------
 # code_workspace — VS Code / Cursor multi-root workspace file
 # ------------------------------------------------------------------------------
 # Automatically generates and maintains a multi-root .code-workspace file mapping
@@ -88,6 +75,14 @@ git_hooks: true
 # Built-in plugins:
 #   copilot        — GitHub Copilot integration: mirrors operational prompts, skills,
 #                    agents, and synthesized instructions into .github/
+#   claude         — Anthropic Claude Code integration: maintains CLAUDE.md instructions
+#                    and mirrors commands, prompts, and skills into .claude/
+#   gemini         — Google Gemini / Antigravity integration: maintains GEMINI.md instructions
+#                    and mirrors prompts and skills into .gemini/
+#   cursor         — Cursor IDE integration: maintains .cursorrules / .cursor/rules/
+#                    and mirrors prompts and skills into .cursor/
+#   windsurf       — Windsurf IDE integration: maintains .windsurfrules
+#                    and mirrors prompts and skills into .windsurf/
 #   karpathy-llm   — Andrej Karpathy's agent behavioral principles,
 #                    context engineering guidelines, and LLM Wiki architecture
 
@@ -97,6 +92,22 @@ plugins:
   #   skills: true         # mirror skills to .github/skills/<name>/SKILL.md (default: true)
   #   instructions: true   # mirror instructions to .github/copilot-instructions.md (default: true)
   #   agents: true         # mirror custom agents to .github/agents/*.agent.md (default: true)
+  # claude:
+  #   instructions: true   # maintain routing in CLAUDE.md (default: true)
+  #   prompts: true        # mirror commands & prompts to .claude/commands/ (default: true)
+  #   skills: true         # mirror skills to .claude/skills/ (default: true)
+  # gemini:
+  #   instructions: true   # maintain routing in GEMINI.md (default: true)
+  #   prompts: true        # mirror prompts to .gemini/prompts/ (default: true)
+  #   skills: true         # mirror skills to .gemini/skills/ (default: true)
+  # cursor:
+  #   instructions: true   # maintain routing in .cursorrules & .cursor/rules/ (default: true)
+  #   prompts: true        # mirror prompts to .cursor/prompts/ (default: true)
+  #   skills: true         # mirror skills to .cursor/skills/ (default: true)
+  # windsurf:
+  #   instructions: true   # maintain routing in .windsurfrules (default: true)
+  #   prompts: true        # mirror prompts to .windsurf/prompts/ (default: true)
+  #   skills: true         # mirror skills to .windsurf/skills/ (default: true)
   # karpathy-llm: {}
 
 # ------------------------------------------------------------------------------

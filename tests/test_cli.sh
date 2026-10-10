@@ -281,28 +281,40 @@ echo "$_status_out" | grep -q "Workspace AI Context" || { fail "Status did not s
 pass
 
 # --------------------------------------------------------------------------
-run_test "Status highlights missing custom ai_instructions file and fix creates it"
-echo "ai_instructions: GEMINI.md" >> "$TEST_WORKSPACE/rnex.yaml"
-_status_missing="$("$TEST_WORKSPACE/rnex" status 2>&1)"
-echo "$_status_missing" | grep -q "GEMINI.md" || { fail "Status did not show GEMINI.md in AI File"; exit 1; }
-echo "$_status_missing" | grep -q "MISSING" || { fail "Status did not highlight GEMINI.md as MISSING"; exit 1; }
-"$TEST_WORKSPACE/rnex" fix >/dev/null
-[ -f "$TEST_WORKSPACE/GEMINI.md" ] || { fail "rnex fix did not create configured GEMINI.md"; exit 1; }
+# --------------------------------------------------------------------------
+run_test "Enabling provider plugin creates provider instructions instead of AGENTS.md"
+# Enable gemini plugin in workspace
+"$TEST_WORKSPACE/rnex" plugin enable gemini >/dev/null
+[ -f "$TEST_WORKSPACE/GEMINI.md" ] || { fail "GEMINI.md was not created when gemini plugin enabled"; exit 1; }
 grep -q "Multi-Repo AI Workspace Context" "$TEST_WORKSPACE/GEMINI.md" || { fail "GEMINI.md missing routing instructions"; exit 1; }
+[ -d "$TEST_WORKSPACE/.gemini/prompts" ] || { fail ".gemini/prompts not created"; exit 1; }
+# Remove AGENTS.md to simulate user wanting GEMINI.md instead of AGENTS.md
+rm -f "$TEST_WORKSPACE/AGENTS.md"
+"$TEST_WORKSPACE/rnex" fix >/dev/null
+[ ! -f "$TEST_WORKSPACE/AGENTS.md" ] || { fail "rnex fix recreated AGENTS.md when gemini plugin is active"; exit 1; }
 _status_fixed="$("$TEST_WORKSPACE/rnex" status 2>&1)"
-echo "$_status_fixed" | grep "GEMINI.md" | grep -q "main instructions" || { fail "Status did not show GEMINI.md as main instructions"; exit 1; }
+echo "$_status_fixed" | grep "GEMINI.md" | grep -q "Gemini instructions" || { fail "Status did not show GEMINI.md as Gemini instructions"; exit 1; }
+# Disable gemini plugin; AGENTS.md should be restored as default
+"$TEST_WORKSPACE/rnex" plugin disable gemini >/dev/null
+[ ! -f "$TEST_WORKSPACE/GEMINI.md" ] || { fail "GEMINI.md was not removed after disabling plugin"; exit 1; }
+[ -f "$TEST_WORKSPACE/AGENTS.md" ] || { fail "AGENTS.md was not restored after disabling provider plugin"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
-run_test "Init with --ai flag sets custom AI instructions file"
+run_test "Init with --claude flag sets up Claude plugin and CLAUDE.md instead of AGENTS.md"
 TEST_AI_WS="$TEST_TMP/ai-workspace"
 mkdir -p "$TEST_AI_WS"
 cp "$CLI" "$TEST_AI_WS/rnex"
 chmod +x "$TEST_AI_WS/rnex"
-"$TEST_AI_WS/rnex" init -y --ai CLAUDE.md "$TEST_AI_WS" >/dev/null
-[ -f "$TEST_AI_WS/CLAUDE.md" ] || { fail "CLAUDE.md was not created by init --ai"; exit 1; }
-grep -q "ai_instructions:[ ]*CLAUDE.md" "$TEST_AI_WS/rnex.yaml" || { fail "ai_instructions not set in rnex.yaml"; exit 1; }
+cp -r "$DIR/toolkit" "$TEST_AI_WS/toolkit"
+"$TEST_AI_WS/rnex" init -y --claude "$TEST_AI_WS" >/dev/null
+[ -f "$TEST_AI_WS/CLAUDE.md" ] || { fail "CLAUDE.md was not created by init --claude"; exit 1; }
+[ ! -f "$TEST_AI_WS/AGENTS.md" ] || { fail "AGENTS.md should not be created when --claude is used"; exit 1; }
+grep -q "claude:" "$TEST_AI_WS/rnex.yaml" || { fail "claude plugin not enabled in rnex.yaml"; exit 1; }
+! grep -q "ai_instructions:" "$TEST_AI_WS/rnex.yaml" || { fail "ai_instructions should not be present in rnex.yaml"; exit 1; }
 grep -q "Multi-Repo AI Workspace Context" "$TEST_AI_WS/CLAUDE.md" || { fail "CLAUDE.md missing routing rules"; exit 1; }
+[ -d "$TEST_AI_WS/.claude/commands" ] || { fail ".claude/commands not created"; exit 1; }
+[ -f "$TEST_AI_WS/.claude/commands/rnex-cross-repo-feature.md" ] || { fail "rnex-cross-repo-feature.md missing in .claude/commands"; exit 1; }
 pass
 
 # --------------------------------------------------------------------------
@@ -363,6 +375,7 @@ OLD_AGENTS
 (cd "$TEST_UPGRADE_WS" && ./rnex fix -y >/dev/null)
 _ws_cli_ver="$("$TEST_UPGRADE_WS/rnex" version 2>&1 | awk '{print $NF}')"
 grep -q "version:[ ]*$_ws_cli_ver" "$TEST_UPGRADE_WS/rnex.yaml" || { fail "rnex fix -y did not add version $_ws_cli_ver to rnex.yaml"; exit 1; }
+! grep -q "ai_instructions:" "$TEST_UPGRADE_WS/rnex.yaml" || { fail "ai_instructions should be stripped during upgrade"; exit 1; }
 grep -q "code_workspace:[ ]*false" "$TEST_UPGRADE_WS/rnex.yaml" || { fail "rnex fix -y did not populate missing code_workspace key"; exit 1; }
 grep -q "git_hooks:[ ]*false" "$TEST_UPGRADE_WS/rnex.yaml" || { fail "rnex fix -y did not populate missing git_hooks key"; exit 1; }
 grep -q "Mandatory Session Startup" "$TEST_UPGRADE_WS/AGENTS.md" || { fail "AGENTS.md not updated with Mandatory Session Startup"; exit 1; }
@@ -610,10 +623,9 @@ grep -q "Custom Developer Section" "$TEST_COPILOT_WS/.github/copilot-instruction
 grep -q "Plugin: karpathy-llm" "$TEST_COPILOT_WS/.github/copilot-instructions.md" || { fail "Plugin instructions lost during copilot-instructions sync"; exit 1; }
 
 # Granular option test: disable instructions only (prompts, skills, agents remain)
-cat <<'EOF' > "$TEST_COPILOT_WS/rnex.yaml"
-version: 0.5.1
+cat <<EOF > "$TEST_COPILOT_WS/rnex.yaml"
+version: 0.5.6
 repos_dir: ./repos
-ai_instructions: AGENTS.md
 code_workspace: false
 git_hooks: false
 plugins:
@@ -630,10 +642,9 @@ grep -q "Custom Developer Section" "$TEST_COPILOT_WS/.github/copilot-instruction
 grep -q "REPO-NEXUS:START" "$TEST_COPILOT_WS/.github/copilot-instructions.md" && { fail "REPO-NEXUS block not removed when instructions: false"; exit 1; }
 
 # Granular option test: disable agents only
-cat <<'EOF' > "$TEST_COPILOT_WS/rnex.yaml"
-version: 0.5.1
+cat <<EOF > "$TEST_COPILOT_WS/rnex.yaml"
+version: 0.5.6
 repos_dir: ./repos
-ai_instructions: AGENTS.md
 code_workspace: false
 git_hooks: false
 plugins:
@@ -649,10 +660,9 @@ EOF
 [ ! -d "$TEST_COPILOT_WS/.github/agents" ] || { fail "Agents directory not cleaned up when agents: false"; exit 1; }
 
 # Granular option test: disable prompts only (skills remain)
-cat <<'EOF' > "$TEST_COPILOT_WS/rnex.yaml"
-version: 0.5.1
+cat <<EOF > "$TEST_COPILOT_WS/rnex.yaml"
+version: 0.5.6
 repos_dir: ./repos
-ai_instructions: AGENTS.md
 code_workspace: false
 git_hooks: false
 plugins:
@@ -679,6 +689,76 @@ EOF
 # Verify status reflects local disable
 _cop_status_disabled="$(cd "$TEST_COPILOT_WS" && ./rnex status 2>&1)"
 echo "$_cop_status_disabled" | grep -q "disabled locally" || { fail "Status did not report plugin disabled locally"; exit 1; }
+pass
+
+# --------------------------------------------------------------------------
+run_test "AI provider plugins: Claude, Gemini, Cursor, Windsurf sync and cleanup"
+TEST_PROVIDERS_WS="$TEST_TMP/providers-ws"
+mkdir -p "$TEST_PROVIDERS_WS"
+cp "$CLI" "$TEST_PROVIDERS_WS/rnex"
+chmod +x "$TEST_PROVIDERS_WS/rnex"
+cp -r "$DIR/toolkit" "$TEST_PROVIDERS_WS/toolkit"
+cp "$DIR/package.json" "$TEST_PROVIDERS_WS/package.json"
+git -C "$TEST_PROVIDERS_WS" init -q
+
+# Init workspace with claude flag
+"$TEST_PROVIDERS_WS/rnex" init -y --claude "$TEST_PROVIDERS_WS" >/dev/null
+[ -f "$TEST_PROVIDERS_WS/CLAUDE.md" ] || { fail "CLAUDE.md missing after init --claude"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/AGENTS.md" ] || { fail "AGENTS.md should not be created when claude plugin is enabled"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.claude/commands/rnex-cross-repo-feature.md" ] || { fail "Claude commands missing"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.claude/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "Claude skills missing"; exit 1; }
+
+# Enable gemini plugin
+(cd "$TEST_PROVIDERS_WS" && ./rnex plugin enable gemini >/dev/null)
+(cd "$TEST_PROVIDERS_WS" && ./rnex fix -y --quiet >/dev/null)
+[ -f "$TEST_PROVIDERS_WS/GEMINI.md" ] || { fail "GEMINI.md missing after enabling gemini"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.gemini/prompts/rnex-cross-repo-feature.prompt.md" ] || { fail "Gemini prompts missing"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.gemini/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "Gemini skills missing"; exit 1; }
+
+# Enable cursor and windsurf plugins
+(cd "$TEST_PROVIDERS_WS" && ./rnex plugin enable cursor >/dev/null)
+(cd "$TEST_PROVIDERS_WS" && ./rnex plugin enable windsurf >/dev/null)
+(cd "$TEST_PROVIDERS_WS" && ./rnex fix -y --quiet >/dev/null)
+[ -f "$TEST_PROVIDERS_WS/.cursorrules" ] || { fail ".cursorrules missing after enabling cursor"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.cursor/rules/repo-nexus.mdc" ] || { fail ".cursor/rules/repo-nexus.mdc missing"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.cursor/prompts/rnex-cross-repo-feature.md" ] || { fail "Cursor prompts missing"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.cursor/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "Cursor skills missing"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.windsurfrules" ] || { fail ".windsurfrules missing after enabling windsurf"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.windsurf/prompts/rnex-cross-repo-feature.md" ] || { fail "Windsurf prompts missing"; exit 1; }
+[ -f "$TEST_PROVIDERS_WS/.windsurf/skills/rnex-cross-repo-feature/SKILL.md" ] || { fail "Windsurf skills missing"; exit 1; }
+
+# Status command reports all enabled AI providers
+_prov_status="$(cd "$TEST_PROVIDERS_WS" && ./rnex status 2>&1)"
+echo "$_prov_status" | grep -q "CLAUDE.md" || { fail "Status did not report CLAUDE.md"; exit 1; }
+echo "$_prov_status" | grep -q "GEMINI.md" || { fail "Status did not report GEMINI.md"; exit 1; }
+echo "$_prov_status" | grep -q "\.cursorrules" || { fail "Status did not report .cursorrules"; exit 1; }
+echo "$_prov_status" | grep -q "\.windsurfrules" || { fail "Status did not report .windsurfrules"; exit 1; }
+
+# Test user custom content preservation across provider instructions
+printf "# Custom Section\n" >> "$TEST_PROVIDERS_WS/CLAUDE.md"
+(cd "$TEST_PROVIDERS_WS" && ./rnex fix -y --quiet >/dev/null)
+grep -q "# Custom Section" "$TEST_PROVIDERS_WS/CLAUDE.md" || { fail "Custom section lost in CLAUDE.md"; exit 1; }
+
+# Disable all provider plugins and verify AGENTS.md restored as fallback default
+(cd "$TEST_PROVIDERS_WS" && ./rnex plugin disable claude >/dev/null)
+(cd "$TEST_PROVIDERS_WS" && ./rnex plugin disable gemini >/dev/null)
+(cd "$TEST_PROVIDERS_WS" && ./rnex plugin disable cursor >/dev/null)
+(cd "$TEST_PROVIDERS_WS" && ./rnex plugin disable windsurf >/dev/null)
+(cd "$TEST_PROVIDERS_WS" && ./rnex fix -y --quiet >/dev/null)
+
+[ -f "$TEST_PROVIDERS_WS/AGENTS.md" ] || { fail "AGENTS.md not restored when all AI provider plugins disabled"; exit 1; }
+[ ! -d "$TEST_PROVIDERS_WS/.claude" ] || { fail ".claude directory not cleaned up"; exit 1; }
+[ ! -d "$TEST_PROVIDERS_WS/.gemini" ] || { fail ".gemini directory not cleaned up"; exit 1; }
+[ ! -d "$TEST_PROVIDERS_WS/.cursor" ] || { fail ".cursor directory not cleaned up"; exit 1; }
+[ ! -d "$TEST_PROVIDERS_WS/.windsurf" ] || { fail ".windsurf directory not cleaned up"; exit 1; }
+# CLAUDE.md retained custom user content but stripped REPO-NEXUS block
+[ -f "$TEST_PROVIDERS_WS/CLAUDE.md" ] || { fail "CLAUDE.md with custom content was deleted"; exit 1; }
+grep -q "# Custom Section" "$TEST_PROVIDERS_WS/CLAUDE.md" || { fail "Custom content lost from CLAUDE.md after disable"; exit 1; }
+! grep -q "REPO-NEXUS:START" "$TEST_PROVIDERS_WS/CLAUDE.md" || { fail "REPO-NEXUS block not stripped from CLAUDE.md after disable"; exit 1; }
+# GEMINI.md, .cursorrules, .windsurfrules had no custom content so were cleanly deleted
+[ ! -f "$TEST_PROVIDERS_WS/GEMINI.md" ] || { fail "GEMINI.md without custom content not deleted"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.cursorrules" ] || { fail ".cursorrules without custom content not deleted"; exit 1; }
+[ ! -f "$TEST_PROVIDERS_WS/.windsurfrules" ] || { fail ".windsurfrules without custom content not deleted"; exit 1; }
 pass
 
 # ==========================================================================

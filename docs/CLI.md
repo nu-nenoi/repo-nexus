@@ -68,33 +68,35 @@ rnex init [options] [directory]
 #### Arguments & Options
 - `directory` *(optional)*: Target directory to initialize. Defaults to current working directory (`$PWD`).
 - `-y`, `--yes`: Non-interactive mode. Accepts all defaults automatically without prompting.
-- `--ai <filename>`, `--instructions <filename>`: Name of the primary AI instructions file (e.g. `CLAUDE.md`, `GEMINI.md`, `.cursorrules`). Default: `AGENTS.md`.
 - `--code-workspace [filename]`: Enable VS Code / Cursor multi-root workspace file generation. Defaults to `<directory-name>.code-workspace` if omitted.
 - `--hooks`: Force-enable automated Git hooks setup during initialization.
 - `--no-hooks`: Skip Git hooks configuration during initialization.
 - `--copilot`: Enable GitHub Copilot integration plugin (mirrors prompts, skills, agents, and instructions to `.github/`).
-- `--no-copilot`: Skip GitHub Copilot plugin (default).
+- `--claude`: Enable Anthropic Claude Code plugin (maintains `CLAUDE.md`, mirrors prompts/skills to `.claude/`).
+- `--gemini`: Enable Google Gemini & Antigravity plugin (maintains `GEMINI.md`, mirrors prompts/skills to `.gemini/`).
+- `--cursor`: Enable Cursor IDE plugin (maintains `.cursorrules` / `.cursor/rules/`, mirrors prompts/skills to `.cursor/`).
+- `--windsurf`: Enable Windsurf IDE plugin (maintains `.windsurfrules`, mirrors prompts/skills to `.windsurf/`).
 
 #### What it does:
 1. Creates `rnex.yaml` with schema versioning (`version: <version>`), `repos_dir: ./repos`, and configured defaults.
-2. Merges Repo Nexus routing instructions (`<!-- REPO-NEXUS:START -->` ... `<!-- REPO-NEXUS:END -->`) into the target AI instructions file.
+2. Merges Repo Nexus routing instructions (`<!-- REPO-NEXUS:START -->` ... `<!-- REPO-NEXUS:END -->`) into `AGENTS.md` (or the respective provider file if a provider plugin flag was specified).
 3. Creates `./repos/` directory with a tracked `.gitkeep`.
 4. Creates `.rnex/`, `.rnex/plugins/`, and copies standardized prompts to `.rnex/prompts/`.
 5. Reconciles `.gitignore` to ensure `repos/` and `.local.rnex.yaml` are never tracked by the meta-repo (while keeping `.rnex/` tracked).
 6. Generates a multi-root `.code-workspace` file if configured.
 7. Prompts to configure automated workspace Git hooks (`core.hooksPath = .rnex/hooks`) if inside a Git repository.
-8. Configures enabled plugins (including `copilot` if requested).
+8. Configures and syncs enabled plugins.
 
 #### Examples:
 ```sh
-# Initialize in current directory with interactive prompts
+# Initialize in current directory with interactive prompts (creates AGENTS.md)
 rnex init
 
 # Non-interactive initialization for CI or automated setup
 rnex init -y
 
-# Initialize for Anthropic Claude Code with automated Git hooks
-rnex init -y --ai CLAUDE.md --hooks
+# Initialize for Anthropic Claude Code with automated Git hooks (creates CLAUDE.md)
+rnex init -y --claude --hooks
 
 # Initialize with VS Code multi-root workspace support
 rnex init --code-workspace my-team.code-workspace
@@ -147,15 +149,16 @@ rnex fix [options]
 
 ### `rnex update` (alias: `upgrade`)
 
-Safely updates an existing workspace's configuration schema and routing instructions to match the currently installed CLI version.
+Safely updates an existing workspace's configuration schema and routing instructions to match the currently installed CLI version as part of the unified `rnex fix` reconciliation process.
 
 ```sh
 rnex update [-y]
 ```
 
 - Compares `version:` in `rnex.yaml` with the running `rnex` CLI version.
-- Non-destructively updates the `version:` key and inserts newly introduced schema keys (`ai_instructions`, `code_workspace`) while strictly preserving existing comments, indentation, and repository declarations.
-- Reconciles AI instructions in `AGENTS.md` / `CLAUDE.md` to the newest standard.
+- Non-destructively upgrades the configuration schema and inserts newly introduced keys while strictly preserving existing comments, indentation, and repository declarations.
+- Reconciles AI instructions, active provider plugins, and workspace routing in a single execution.
+- `rnex update` and `rnex upgrade` are aliases that invoke the unified `rnex fix` workflow.
 
 ---
 
