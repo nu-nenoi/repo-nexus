@@ -2,7 +2,7 @@
 
 Repo Nexus includes an extensible, modular plugin engine designed to equip multi-repo workspaces with AI assistant integrations, standardized prompts, agent workflows, and shared context protocols.
 
-Each plugin is self-contained and managed declaratively via [`rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/rnex.yaml) or workstation-specific overrides in [`.local.rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/.local.rnex.yaml).
+Each plugin is self-contained and managed declaratively via `rnex.yaml` or workstation-specific overrides in `.local.rnex.yaml`.
 
 ---
 
@@ -16,8 +16,8 @@ Active plugins are mirrored into each active member repository under `repos/<nam
 
 ### 3. Decoupled Cross-Plugin Asset Discovery
 Repo Nexus decouples functional plugins from AI provider plugins:
-- **Functional Plugins** (such as [`karpathy-llm`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/karpathy-llm.md)) declare operational prompts, skills, custom agents, and behavioral guidelines.
-- **Provider Plugins** (such as [`copilot`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/copilot.md), [`claude`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/claude.md), [`gemini`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/gemini.md), [`cursor`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/cursor.md), and [`windsurf`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/windsurf.md)) automatically scan all active plugins and mirror their prompts, skills, and agents into the provider's native format (`.github/`, `.claude/`, `.gemini/`, `.cursor/`, `.windsurf/`).
+- **Functional Plugins** (such as [`karpathy-llm`](karpathy-llm.md)) declare operational prompts, skills, custom agents, and behavioral guidelines.
+- **Provider Plugins** (such as [`copilot`](copilot.md), [`claude`](claude.md), [`gemini`](gemini.md), [`cursor`](cursor.md), and [`windsurf`](windsurf.md)) automatically scan all active plugins and mirror their prompts, skills, and agents into the provider's native format (`.github/`, `.claude/`, `.gemini/`, `.cursor/`, `.windsurf/`).
 
 Adding a new skill or prompt to any functional plugin automatically makes it available across all enabled AI provider tools without manual duplication.
 
@@ -42,18 +42,18 @@ Developer-authored instructions outside of these delimiters are strictly preserv
 
 | Plugin | Category | Description | Documentation |
 |:---|:---|:---|:---|
-| [`copilot`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/copilot.md) | AI Provider | GitHub Copilot integration: mirrors prompts to `.github/prompts/`, skills to `.github/skills/`, custom agents to `.github/agents/`, and maintains `.github/copilot-instructions.md`. | [Read Guide](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/copilot.md) |
-| [`claude`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/claude.md) | AI Provider | Anthropic Claude Code & Desktop integration: maintains `CLAUDE.md` and mirrors commands, prompts, skills, and agents to `.claude/`. | [Read Guide](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/claude.md) |
-| [`gemini`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/gemini.md) | AI Provider | Google Gemini CLI & Antigravity IDE integration: maintains `GEMINI.md` and mirrors prompts, skills, and agents to `.gemini/`. | [Read Guide](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/gemini.md) |
-| [`cursor`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/cursor.md) | AI Provider | Cursor IDE integration: maintains `.cursorrules` and `.cursor/rules/repo-nexus.mdc`, and mirrors prompts, skills, and agents to `.cursor/`. | [Read Guide](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/cursor.md) |
-| [`windsurf`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/windsurf.md) | AI Provider | Windsurf IDE integration: maintains `.windsurfrules` and mirrors prompts, skills, and agents to `.windsurf/`. | [Read Guide](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/windsurf.md) |
-| [`karpathy-llm`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/karpathy-llm.md) | Agent Knowledge & Principles | Andrej Karpathy's 4 cardinal principles for coding agents, multi-repo context engineering standards, and autonomous zero-dependency LLM Wiki architecture (`raw/`, `wiki/`). | [Read Guide](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/karpathy-llm.md) |
+| [`copilot`](copilot.md) | AI Provider | GitHub Copilot integration: mirrors prompts to `.github/prompts/`, skills to `.github/skills/`, custom agents to `.github/agents/`, and maintains `.github/copilot-instructions.md`. | [Read Guide](copilot.md) |
+| [`claude`](claude.md) | AI Provider | Anthropic Claude Code & Desktop integration: maintains `CLAUDE.md` and mirrors commands, prompts, skills, and agents to `.claude/`. | [Read Guide](claude.md) |
+| [`gemini`](gemini.md) | AI Provider | Google Gemini CLI & Antigravity IDE integration: maintains `GEMINI.md` and mirrors prompts, skills, and agents to `.gemini/`. | [Read Guide](gemini.md) |
+| [`cursor`](cursor.md) | AI Provider | Cursor IDE integration: maintains `.cursorrules` and `.cursor/rules/repo-nexus.mdc`, and mirrors prompts, skills, and agents to `.cursor/`. | [Read Guide](cursor.md) |
+| [`windsurf`](windsurf.md) | AI Provider | Windsurf IDE integration: maintains `.windsurfrules` and mirrors prompts, skills, and agents to `.windsurf/`. | [Read Guide](windsurf.md) |
+| [`karpathy-llm`](karpathy-llm.md) | Agent Knowledge & Principles | Andrej Karpathy's 4 cardinal principles for coding agents, multi-repo context engineering standards, and autonomous zero-dependency LLM Wiki architecture (`raw/`, `wiki/`). | [Read Guide](karpathy-llm.md) |
 
 ---
 
 ## Managing Plugins via CLI
 
-The [`rnex plugin`](file:///Users/admin/Projects/ai/repo-nexus/docs/CLI.md#plugin-management-commands) command family provides full management capabilities:
+The [`rnex plugin`](../CLI.md#plugin-management-commands) command family provides full management capabilities:
 
 ```sh
 # List available and active plugins

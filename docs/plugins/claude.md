@@ -18,7 +18,7 @@ It maintains instructions in `CLAUDE.md` and mirrors operational prompts, skills
    - In Claude Code CLI, workflows can be invoked directly as custom slash commands (e.g. `/rnex-cross-repo-feature`, `/rnex-workspace-audit`, `/wiki-ingest`).
 
 3. **Agent Skills (`.claude/skills/<name>/SKILL.md`)**:
-   - Mirrors skills from active plugins (like `wiki-ingest` and `wiki-lint` from [`karpathy-llm`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/karpathy-llm.md)) into `.claude/skills/<name>/SKILL.md`.
+   - Mirrors skills from active plugins (like `wiki-ingest` and `wiki-lint` from [`karpathy-llm`](karpathy-llm.md)) into `.claude/skills/<name>/SKILL.md`.
 
 4. **Custom Agents (`.claude/agents/*.md`)**:
    - Mirrors custom agents declared in active plugins (e.g., `wiki-curator.md`) into `.claude/agents/`.
@@ -48,7 +48,7 @@ rnex init --claude
 
 ## Configuration Options
 
-Configure options under `plugins.claude` in [`rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/rnex.yaml) or [`.local.rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/.local.rnex.yaml):
+Configure options under `plugins.claude` in `rnex.yaml` or `.local.rnex.yaml`:
 
 ```yaml
 plugins:

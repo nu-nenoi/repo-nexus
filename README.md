@@ -5,7 +5,6 @@
 [![License: MIT](https://img.shields.io/github/license/nu-nenoi/repo-nexus)](LICENSE)
 [![POSIX Compatible](https://img.shields.io/badge/POSIX-compatible-success)](#)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](#)
-[![FAQ](https://img.shields.io/badge/docs-FAQ-blue.svg)](docs/FAQ.md)
 [![CLI Reference](https://img.shields.io/badge/docs-CLI%20Reference-blue.svg)](docs/CLI.md)
 
 A **simple, lightweight Virtual Meta-Repo companion** for multi-repo workspaces and shared AI context. It organizes independent repositories into a unified workspace and shares lean routing instructions (`AGENTS.md`) **without Git submodules, monorepo migrations, or symlink fragility**.

@@ -17,7 +17,7 @@ It maintains instructions in `.windsurfrules` and synchronizes prompt templates,
    - Converts standard Repo Nexus operational prompts (`rnex-cross-repo-feature`, `rnex-workspace-audit`, etc.) and active plugins' workflows into Windsurf prompt files with YAML frontmatter.
 
 3. **Agent Skills (`.windsurf/skills/<name>/SKILL.md`)**:
-   - Mirrors skills from active plugins (like `wiki-ingest` and `wiki-lint` from [`karpathy-llm`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/karpathy-llm.md)) into `.windsurf/skills/<name>/SKILL.md`.
+   - Mirrors skills from active plugins (like `wiki-ingest` and `wiki-lint` from [`karpathy-llm`](karpathy-llm.md)) into `.windsurf/skills/<name>/SKILL.md`.
 
 4. **Custom Agents (`.windsurf/agents/*.md`)**:
    - Mirrors custom agents declared in active plugins (e.g., `wiki-curator.md`) into `.windsurf/agents/`.
@@ -47,7 +47,7 @@ rnex init --windsurf
 
 ## Configuration Options
 
-Configure options under `plugins.windsurf` in [`rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/rnex.yaml) or [`.local.rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/.local.rnex.yaml):
+Configure options under `plugins.windsurf` in `rnex.yaml` or `.local.rnex.yaml`:
 
 ```yaml
 plugins:

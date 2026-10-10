@@ -358,7 +358,7 @@ Unsets `core.hooksPath` in Git configuration, removes `.rnex/hooks/`, and record
 
 Repo Nexus features a modular plugin architecture where plugin rules, instructions, and templates are scoped strictly under `.rnex/plugins/<plugin-name>/`.
 
-For complete documentation on built-in plugins (Copilot, Claude, Gemini, Cursor, Windsurf, Karpathy LLM), see the [**Repo Nexus Plugins Guide**](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/README.md).
+For complete documentation on built-in plugins (Copilot, Claude, Gemini, Cursor, Windsurf, Karpathy LLM), see the [**Repo Nexus Plugins Guide**](plugins/README.md).
 
 ```sh
 rnex plugin <list|info|enable|disable> [options] [name]
@@ -380,12 +380,12 @@ AI assistants navigate workflows via the catalog index at `.rnex/prompts/index.m
 
 | Prompt File | Purpose |
 |:---|:---|
-| [`index.md`](file:///Users/admin/Projects/ai/repo-nexus/toolkit/prompts/index.md) | Master catalog indexing all available workflows and prompts. |
-| [`rnex-cross-repo-feature.md`](file:///Users/admin/Projects/ai/repo-nexus/toolkit/prompts/rnex-cross-repo-feature.md) | Structured workflow for implementing cross-cutting features across multiple repos. |
-| [`rnex-workspace-audit.md`](file:///Users/admin/Projects/ai/repo-nexus/toolkit/prompts/rnex-workspace-audit.md) | Health, git dirty status, branch tracking, and configuration audit workflow. |
-| [`rnex-wiki-ingest.md`](file:///Users/admin/Projects/ai/repo-nexus/toolkit/prompts/rnex-wiki-ingest.md) | Autonomous ingestion of source docs from `/raw/` into Karpathy LLM Wiki pages. |
-| [`rnex-wiki-lint.md`](file:///Users/admin/Projects/ai/repo-nexus/toolkit/prompts/rnex-wiki-lint.md) | Link validation, backlink (`mentioned_in`) recalculation, and index rebuilding. |
-| [`rnex-setup-karpathy-wiki.md`](file:///Users/admin/Projects/ai/repo-nexus/toolkit/prompts/rnex-setup-karpathy-wiki.md) | Scaffolding prompt for Karpathy LLM Wiki architecture in any repository. |
+| [`index.md`](../toolkit/prompts/index.md) | Master catalog indexing all available workflows and prompts. |
+| [`rnex-cross-repo-feature.md`](../toolkit/prompts/rnex-cross-repo-feature.md) | Structured workflow for implementing cross-cutting features across multiple repos. |
+| [`rnex-workspace-audit.md`](../toolkit/prompts/rnex-workspace-audit.md) | Health, git dirty status, branch tracking, and configuration audit workflow. |
+| [`rnex-wiki-ingest.md`](../toolkit/prompts/rnex-wiki-ingest.md) | Autonomous ingestion of source docs from `/raw/` into Karpathy LLM Wiki pages. |
+| [`rnex-wiki-lint.md`](../toolkit/prompts/rnex-wiki-lint.md) | Link validation, backlink (`mentioned_in`) recalculation, and index rebuilding. |
+| [`rnex-setup-karpathy-wiki.md`](../toolkit/prompts/rnex-setup-karpathy-wiki.md) | Scaffolding prompt for Karpathy LLM Wiki architecture in any repository. |
 
 ---
 

@@ -17,7 +17,7 @@ It maintains instructions in `GEMINI.md` and synchronizes prompt templates, skil
    - Converts standard Repo Nexus operational prompts (`rnex-cross-repo-feature`, `rnex-workspace-audit`, etc.) and active plugins' workflows into Gemini prompt files with YAML frontmatter.
 
 3. **Agent Skills (`.gemini/skills/<name>/SKILL.md`)**:
-   - Mirrors skills from active plugins (like `wiki-ingest` and `wiki-lint` from [`karpathy-llm`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/karpathy-llm.md)) into `.gemini/skills/<name>/SKILL.md`.
+   - Mirrors skills from active plugins (like `wiki-ingest` and `wiki-lint` from [`karpathy-llm`](karpathy-llm.md)) into `.gemini/skills/<name>/SKILL.md`.
 
 4. **Custom Agents (`.gemini/agents/*.md`)**:
    - Mirrors custom agents declared in active plugins (e.g., `wiki-curator.md`) into `.gemini/agents/`.
@@ -47,7 +47,7 @@ rnex init --gemini
 
 ## Configuration Options
 
-Configure options under `plugins.gemini` in [`rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/rnex.yaml) or [`.local.rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/.local.rnex.yaml):
+Configure options under `plugins.gemini` in `rnex.yaml` or `.local.rnex.yaml`:
 
 ```yaml
 plugins:

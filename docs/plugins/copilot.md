@@ -10,7 +10,7 @@ It synchronizes workspace prompts, agent skills, custom agents, and multi-repo r
 
 1. **Instructions Synthesis (`.github/copilot-instructions.md`)**:
    - Synthesizes Repo Nexus multi-repo routing instructions into `.github/copilot-instructions.md`.
-   - Incorporates rules and instructions from all active workspace plugins (e.g. [`karpathy-llm`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/karpathy-llm.md)).
+   - Incorporates rules and instructions from all active workspace plugins (e.g. [`karpathy-llm`](karpathy-llm.md)).
    - Protected by `<!-- REPO-NEXUS:START -->` and `<!-- REPO-NEXUS:END -->` delimiters so existing custom team instructions are never overwritten.
 
 2. **Prompts Mirroring (`.github/prompts/*.prompt.md`)**:
@@ -48,7 +48,7 @@ rnex init --copilot
 
 ## Configuration Options
 
-Configure options under `plugins.copilot` in [`rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/rnex.yaml) or [`.local.rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/.local.rnex.yaml):
+Configure options under `plugins.copilot` in `rnex.yaml` or `.local.rnex.yaml`:
 
 ```yaml
 plugins:

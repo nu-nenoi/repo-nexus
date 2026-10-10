@@ -16,7 +16,7 @@ It maintains instructions in both `.cursorrules` (legacy format) and `.cursor/ru
    - Converts standard Repo Nexus operational prompts (`rnex-cross-repo-feature`, `rnex-workspace-audit`, etc.) and active plugins' workflows into Cursor prompt templates with YAML frontmatter.
 
 3. **Agent Skills (`.cursor/skills/<name>/SKILL.md`)**:
-   - Mirrors skills from active plugins (like `wiki-ingest` and `wiki-lint` from [`karpathy-llm`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/karpathy-llm.md)) into `.cursor/skills/<name>/SKILL.md`.
+   - Mirrors skills from active plugins (like `wiki-ingest` and `wiki-lint` from [`karpathy-llm`](karpathy-llm.md)) into `.cursor/skills/<name>/SKILL.md`.
 
 4. **Custom Agents (`.cursor/agents/*.md`)**:
    - Mirrors custom agents declared in active plugins (e.g., `wiki-curator.md`) into `.cursor/agents/`.
@@ -46,7 +46,7 @@ rnex init --cursor
 
 ## Configuration Options
 
-Configure options under `plugins.cursor` in [`rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/rnex.yaml) or [`.local.rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/.local.rnex.yaml):
+Configure options under `plugins.cursor` in `rnex.yaml` or `.local.rnex.yaml`:
 
 ```yaml
 plugins:

@@ -81,7 +81,7 @@ rnex plugin enable --local karpathy-llm
 
 ## Configuration Options
 
-Configure options under `plugins.karpathy-llm` in [`rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/rnex.yaml) or [`.local.rnex.yaml`](file:///Users/admin/Projects/ai/repo-nexus/.local.rnex.yaml):
+Configure options under `plugins.karpathy-llm` in `rnex.yaml` or `.local.rnex.yaml`:
 
 ```yaml
 plugins:
@@ -162,9 +162,9 @@ my-workspace/
 ## Cross-Plugin Provider Mirroring
 
 Because Repo Nexus features decoupled cross-plugin asset discovery:
-- If [`copilot`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/copilot.md) is enabled, `wiki-ingest` and `wiki-lint` prompts mirror to `.github/prompts/`, skills mirror to `.github/skills/`, and `wiki-curator.agent.md` mirrors to `.github/agents/`.
-- If [`claude`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/claude.md) is enabled, `wiki-ingest` and `wiki-lint` mirror to `.claude/commands/`, `.claude/prompts/`, and `.claude/skills/`.
-- If [`gemini`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/gemini.md), [`cursor`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/cursor.md), or [`windsurf`](file:///Users/admin/Projects/ai/repo-nexus/docs/plugins/windsurf.md) is enabled, prompts, skills, and agents mirror into `.gemini/`, `.cursor/`, and `.windsurf/`.
+- If [`copilot`](copilot.md) is enabled, `wiki-ingest` and `wiki-lint` prompts mirror to `.github/prompts/`, skills mirror to `.github/skills/`, and `wiki-curator.agent.md` mirrors to `.github/agents/`.
+- If [`claude`](claude.md) is enabled, `wiki-ingest` and `wiki-lint` mirror to `.claude/commands/`, `.claude/prompts/`, and `.claude/skills/`.
+- If [`gemini`](gemini.md), [`cursor`](cursor.md), or [`windsurf`](windsurf.md) is enabled, prompts, skills, and agents mirror into `.gemini/`, `.cursor/`, and `.windsurf/`.
 
 ---
 
